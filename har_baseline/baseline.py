@@ -873,19 +873,19 @@ class BHar:
         header = None
 
         for file in os.listdir(ds_dir):
-            # Derive header if not exists
-            if is_first and not has_header:
-                is_first = False
-                header = self._derive_headers(pd.read_csv(os.path.join(ds_dir, file), sep=separator).shape[1],
-                                              header_type)
+            if file.endswith('.csv') or file.endswith('.txt'):
+                # Derive header if not exists
+                if is_first and not has_header:
+                    is_first = False
+                    header = self._derive_headers(pd.read_csv(os.path.join(ds_dir, file), sep=separator).shape[1], header_type)
 
-            # Append dataframes
-            if has_header:
-                frames.append(pd.read_csv(os.path.join(ds_dir, file), sep=separator))
-            else:
-                df_i = pd.read_csv(os.path.join(ds_dir, file), sep=separator, header=None)
-                df_i.columns = header
-                frames.append(df_i)
+                # Append dataframes
+                if has_header:
+                    frames.append(pd.read_csv(os.path.join(ds_dir, file), sep=separator))
+                else:
+                    df_i = pd.read_csv(os.path.join(ds_dir, file), sep=separator, header=None)
+                    df_i.columns = header
+                    frames.append(df_i)
 
         return pd.concat(frames, ignore_index=True)
 
