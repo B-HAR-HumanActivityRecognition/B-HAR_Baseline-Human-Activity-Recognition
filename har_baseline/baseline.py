@@ -961,12 +961,13 @@ class BHar:
         else:
             cfg = ts.get_features_by_domain(domain)
 
+        tsfel_overlap = round(overlap/Configurator(self.__cfg_path).getfloat('settings', 'time'), 3)
         # Features Extraction
         X_features = ts.time_series_features_extractor(cfg,
                                                        x,
                                                        fs=sampling_frequency,
                                                        window_size=time_window,
-                                                       overlap=overlap,
+                                                       overlap=tsfel_overlap,
                                                        verbose=0)
         Y_features = self._labels_windowing(y, sampling_frequency, time_window, overlap)
 
