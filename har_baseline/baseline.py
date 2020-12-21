@@ -527,10 +527,10 @@ class BHar:
                                 model_name, metrics1[1], metrics1[0], metrics2[0], metrics3, metrics2[1], metrics2[0]),
                         level=logging.INFO)
 
-            self._cm_analysis(y_test, predictions, class_values, class_txt_labels, model_name,
+            self._cm_analysis(y_test, predictions, class_values, model_name,
                               '%s Model Ensembles (used %s)' % (model_name, str(n_used_models)), 'deep_learning')
 
-    def _cm_analysis(self, y_true, y_pred, labels, display_labels, model_name, title, path, ymap=None):
+    def _cm_analysis(self, y_true, y_pred, labels, model_name, title, path, ymap=None):
         """
         Generate matrix plot of confusion matrix with pretty annotations.
         The plot image is saved to disk.
@@ -571,7 +571,7 @@ class BHar:
                     annot[i, j] = ''
                 else:
                     annot[i, j] = '%.1f%%\n%d' % (p, c)
-        cm = pd.DataFrame(cm, index=display_labels, columns=display_labels)
+        cm = pd.DataFrame(cm, index=labels, columns=labels)
         cm.index.name = 'Actual'
         cm.columns.name = 'Predicted'
         fig, ax = plt.subplots(figsize=figsize)
@@ -1023,7 +1023,7 @@ class BHar:
                 'accuracy': metrics3
             })
 
-            self._cm_analysis(y_test, y_pred, np.unique(y_train), class_labels, '', name, 'machine_learning')
+            self._cm_analysis(y_test, y_pred, np.unique(y_train), '', name, 'machine_learning')
 
             logging.log(msg=classification_report(y_test, y_pred), level=logging.INFO)
             logging.log(msg='--> clf: %s\n'
