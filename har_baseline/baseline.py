@@ -875,7 +875,7 @@ class BHar:
         header = None
 
         for file in os.listdir(ds_dir):
-            if file.endswith('.csv') or file.endswith('.txt'):
+            if (file.endswith('.csv') or file.endswith('.txt')) and not file.startswith('.'):
                 # Derive header if not exists
                 if is_first and not has_header:
                     is_first = False
