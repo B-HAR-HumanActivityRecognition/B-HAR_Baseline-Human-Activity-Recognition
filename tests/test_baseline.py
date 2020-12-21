@@ -12,7 +12,7 @@ class StatsTestCase(unittest.TestCase):
         self.assertEqual(True, True)
 
     def test_evaluation(self):
-        self.bhar.get_baseline(['K-NN'], ['m1_acc'])
+        self.bhar.get_baseline(['RF', 'DT', 'LDA', 'QDA', 'K-NN'], ['m1_acc'])
         self.assertEqual(True, True)
 
     def test_evaluation_dl_near_miss(self):

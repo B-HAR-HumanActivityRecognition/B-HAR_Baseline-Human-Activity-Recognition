@@ -98,8 +98,8 @@ class MlModels(object):
         'K-NN': {
             'model': KNeighborsClassifier(n_jobs=-1),
             'param_grid': {
-                'n_neighbors': list(range(1, 21)),
-                'p': [1, 2, 3, 4, 5],
+                'n_neighbors': list(range(1, 5)),
+                'p': [1, 3, 5],
                 'metric': ['euclidean', 'manhattan', 'chebyshev', 'minkowski']
             }
         },
@@ -108,14 +108,14 @@ class MlModels(object):
             'param_grid': {
                 'solver': ['svd', 'lsqr', 'eigen'],
                 'store_covariance': ['True', 'False'],
-                'tol': [0.0001, 0.001, 0.01, 0.1, 1]
+                'tol': [0.0001, 0.001, 0.01, 0.1, 1.0]
             }
         },
         'QDA': {
             'model': QuadraticDiscriminantAnalysis(),
             'param_grid': {
                 'store_covariance': ['True', 'False'],
-                'tol': [0.0001, 0.001, 0.01, 0.1, 1]
+                'tol': [0.0001, 0.001, 0.01, 0.1, 1.0]
             }
         },
         'RF': {
@@ -123,7 +123,7 @@ class MlModels(object):
             'param_grid': {
                 'criterion': ['gini', 'entropy'],
                 'max_features': ['auto', 'sqrt', 'log2'],
-                'min_samples_split': [1, 2, 3, 4, 5]
+                'min_samples_split': [2, 3, 4, 5]
             }
         },
         'DT': {
@@ -131,7 +131,7 @@ class MlModels(object):
             'param_grid': {
                 'criterion': ['gini', 'entropy'],
                 'splitter': ['best', 'random'],
-                'min_samples_split': [1, 2, 3, 4, 5],
+                'min_samples_split': [2, 3, 4, 5],
                 'max_features': ['auto', 'sqrt', 'log2']
             }
         }

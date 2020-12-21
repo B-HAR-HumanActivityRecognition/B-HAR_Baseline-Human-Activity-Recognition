@@ -511,8 +511,6 @@ class BHar:
         else:
             n_used_models = len(predictions)
             predictions = stats.mode(np.asarray(predictions))[0][0]
-            self._cm_analysis(y_test, predictions, class_values, class_txt_labels, model_name,
-                              '%s Model Ensembles (used %s)' % (model_name, str(n_used_models)), 'deep_learning')
 
             # Metrics
             metrics1 = sensitivity_specificity_support(y_test, predictions, average='weighted')
@@ -528,6 +526,9 @@ class BHar:
                             '   • f1-score: %s\n' % (
                                 model_name, metrics1[1], metrics1[0], metrics2[0], metrics3, metrics2[1], metrics2[0]),
                         level=logging.INFO)
+
+            self._cm_analysis(y_test, predictions, class_values, class_txt_labels, model_name,
+                              '%s Model Ensembles (used %s)' % (model_name, str(n_used_models)), 'deep_learning')
 
     def _cm_analysis(self, y_true, y_pred, labels, display_labels, model_name, title, path, ymap=None):
         """
@@ -803,6 +804,7 @@ class BHar:
                     '*** Fallback: not recognised %s, using RandomOverSampler instead ***' % balancing_method)
                 sampler = RandomOverSampler()
         else:
+            balancing_method = ''
             sampler = None
 
         if sampler is not None:
