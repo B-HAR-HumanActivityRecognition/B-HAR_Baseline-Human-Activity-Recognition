@@ -134,8 +134,6 @@ class BHar:
                                    has_header=Configurator(self.__cfg_path).getboolean('dataset', 'has_header')
                                    )
         # -----------------
-        # TODO: Remove this
-        # dataset = dataset[:1120]
 
         # --- Data Cleaning  ---
         dataset = self._clean_data(df=dataset,
@@ -193,14 +191,12 @@ class BHar:
 
         # --- Start ML Evaluation ---
         if Configurator(self.__cfg_path).getboolean('settings', 'use_ml'):
-            self._start_ml_evaluation(X_train_set, Y_train_set, X_validation_set, Y_validation_set, ml_models,
-                                      class_labels)
+            self._start_ml_evaluation(X_train_set, Y_train_set, X_validation_set, Y_validation_set, ml_models)
         # ---------------------------
 
         # --- Start DL Evaluation ---
         if Configurator(self.__cfg_path).getboolean('settings', 'use_dl'):
-            self._dl_evaluation(X_train_set, Y_train_set, X_validation_set, Y_validation_set, dl_models, class_labels,
-                                time_window_size)
+            self._dl_evaluation(X_train_set, Y_train_set, X_validation_set, Y_validation_set, dl_models, time_window_size)
         # ---------------------------
 
     # --- Private Methods ---
@@ -221,7 +217,7 @@ class BHar:
             x_df['P_ID'] = p
         return x_df
 
-    def _dl_evaluation(self, x_train, y_train, x_val, y_val, dl_models, class_labels, time_window_size):
+    def _dl_evaluation(self, x_train, y_train, x_val, y_val, dl_models, time_window_size):
         # --- Use Also Features ---
         if Configurator(self.__cfg_path).getboolean('training', 'use_features') and \
                 Configurator(self.__cfg_path).get('settings', 'data_treatment') == 'features_extraction':
@@ -252,7 +248,6 @@ class BHar:
                                        Configurator(self.__cfg_path).getint('training', 'k_fold'),
                                        Configurator(self.__cfg_path).getfloat('training', 'loss_threshold'),
                                        np.unique(y_train),
-                                       class_labels,
                                        'Features-as-input')
             # ------------------------
             # --- Use accelerometer data as input to the CNN ---
@@ -289,7 +284,6 @@ class BHar:
                                        Configurator(self.__cfg_path).getint('training', 'k_fold'),
                                        Configurator(self.__cfg_path).getfloat('training', 'loss_threshold'),
                                        np.unique(y_train),
-                                       class_labels,
                                        'Accelerometer-data')
             # ---------------------------
 
@@ -322,7 +316,6 @@ class BHar:
                                        Configurator(self.__cfg_path).getint('training', 'k_fold'),
                                        Configurator(self.__cfg_path).getfloat('training', 'loss_threshold'),
                                        np.unique(y_train),
-                                       class_labels,
                                        'Raw')
 
     def _apply_filter(self, df, filter_name, sample_rate, frequency_cutoff, order):
@@ -422,8 +415,7 @@ class BHar:
 
             # Check if the gap between train and validation is constant
             self._print_val_train_stats(history.history, '%s fold %s' % (model_name, fold),
-                                        Configurator(self.__cfg_path).getboolean('settings',
-                                                                                 'use_dl'))
+                                        Configurator(self.__cfg_path).getboolean('settings', 'use_dl'))
 
             # Predict values of validation
             pred = model.predict(x_test)
@@ -496,8 +488,7 @@ class BHar:
 
         return np.mean(accuracy_per_fold), trained_models  # Accuracy, models
 
-    def _model_ensembles(self, trained_models, model, x_test_unseen, y_test, model_name, class_values, class_txt_labels,
-                         threshold=.40):
+    def _model_ensembles(self, trained_models, model, x_test_unseen, y_test, model_name, class_values, threshold=.40):
         predictions = list()
         for key in trained_models:
             # Use only models with a mean squared error under the threshold for prediction
@@ -670,7 +661,10 @@ class BHar:
                 df.drop(indexes, inplace=True)
 
         # Class renaming
-        old_labels = df['CLASS'].unique()
+        if df['CLASS'].unique().dtype == int:
+            old_labels = sorted(df['CLASS'].unique())
+        else:
+            old_labels = df['CLASS'].unique()
         original_name_labels = list()
         logging.info('--> New labels:')
         for new, old in zip(range(len(old_labels)), old_labels):
@@ -982,7 +976,7 @@ class BHar:
 
         return features_df
 
-    def _start_ml_evaluation(self, x_train, y_train, x_test, y_test, models_and_params, class_labels):
+    def _start_ml_evaluation(self, x_train, y_train, x_test, y_test, models_and_params):
         # Create ml directory if not exists
         Path(os.path.join(Configurator(self.__cfg_path).get('settings', 'log_dir'), 'machine_learning')).mkdir(
             parents=True,
@@ -1039,7 +1033,7 @@ class BHar:
         # logging.log(msg=pd.DataFrame(report_raw).head(len(models_and_params)), level=logging.INFO)
 
     def _start_cnn_evaluation(self, x_train, y_train, x_test, y_test, models_name: list, epochs, n_fold: int,
-                              me_loss_threshold, class_values, class_labels, title):
+                              me_loss_threshold, class_values, title):
         # Create ml directory if not exists
         Path(os.path.join(Configurator(self.__cfg_path).get('settings', 'log_dir'), 'deep_learning')).mkdir(
             parents=True,
@@ -1065,8 +1059,7 @@ class BHar:
             # Model Ensembles
             self._model_ensembles(trained_models, model, x_test, y_test, '%s %s' % (model_name, title),
                                   threshold=me_loss_threshold,
-                                  class_values=class_values,
-                                  class_txt_labels=class_labels)
+                                  class_values=class_values)
 
     def _get_window(self, df: pd.DataFrame, sampling_frequency: int, window_size: int, overlap: float):
         hop_size = window_size - int(sampling_frequency * overlap)
