@@ -106,16 +106,16 @@ class MlModels(object):
         'LDA': {
             'model': LinearDiscriminantAnalysis(),
             'param_grid': {
-                'solver': ['svd', 'lsqr', 'eigen'],
+                'solver': ['svd'],
                 'store_covariance': ['True', 'False'],
-                'tol': [0.0001, 0.001, 0.01, 0.1, 1.0]
+                'tol': [0.0001, 0.001, 0.01]
             }
         },
         'QDA': {
             'model': QuadraticDiscriminantAnalysis(),
             'param_grid': {
                 'store_covariance': ['True', 'False'],
-                'tol': [0.0001, 0.001, 0.01, 0.1, 1.0]
+                'tol': [0.0001, 0.001, 0.01]
             }
         },
         'RF': {

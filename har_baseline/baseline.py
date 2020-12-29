@@ -199,6 +199,10 @@ class BHar:
             self._dl_evaluation(X_train_set, Y_train_set, X_validation_set, Y_validation_set, dl_models, time_window_size)
         # ---------------------------
 
+        # --- Shut down logging ---
+        logging.shutdown()
+        # ---------------------------
+
     # --- Private Methods ---
 
     def _apply_segmentation(self, df, sampling_frequency, time_window_size, overlap):
@@ -348,8 +352,10 @@ class BHar:
 
             # Configure logging
             logging.basicConfig(filename=os.path.join(new_log_dir_path, 'log.rtf'), format='', level=logging.INFO)
-        except OSError:
-            logging.log(msg="Creation of the directory %s failed" % new_log_dir_path, level=logging.ERROR)
+        except Exception as e:
+            print(e.args)
+            logging.info(e.args)
+            exit(1)
         else:
             logging.log(msg="Successfully created the directory %s " % new_log_dir_path, level=logging.INFO)
 
@@ -913,29 +919,32 @@ class BHar:
             cutoff = high_cutoff
         elif filter_name == 'bandpass':
             cutoff = (high_cutoff, low_cutoff)
+        elif filter_name == 'no':
+            cutoff = None
         else:
             cutoff = None
             logging.info('*** Error: invalid filter name %s ***' % filter_name)
             print('*** Error: invalid filter name %s ***' % filter_name)
             exit(11)
 
-        df_filtered = pd.DataFrame(
-            self._apply_filter(
-                df=df_filtered,
-                filter_name=filter_name,
-                sample_rate=sampling_frequency,
-                frequency_cutoff=cutoff,
-                order=filter_order
-            ),
-            columns=list(df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]])
-        )
+        if cutoff is not None:
+            df_filtered = pd.DataFrame(
+                self._apply_filter(
+                    df=df_filtered,
+                    filter_name=filter_name,
+                    sample_rate=sampling_frequency,
+                    frequency_cutoff=cutoff,
+                    order=filter_order
+                ),
+                columns=list(df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]])
+            )
 
-        # Add class and other to the filtered dataset
-        df_filtered['CLASS'] = df['CLASS']
-        if 'p' in header_type:
-            df_filtered['P_ID'] = df['P_ID']
-        if 't' in header_type:
-            df_filtered.insert(0, 'time', df['time'])
+            # Add class and other to the filtered dataset
+            df_filtered['CLASS'] = df['CLASS']
+            if 'p' in header_type:
+                df_filtered['P_ID'] = df['P_ID']
+            if 't' in header_type:
+                df_filtered.insert(0, 'time', df['time'])
 
         return df_filtered
 
