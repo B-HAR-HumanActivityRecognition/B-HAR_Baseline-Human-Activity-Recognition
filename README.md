@@ -1,2 +1,2 @@
 # HAR Baseline
-Write package description here!
+Human Activity Recognition (HAR) is nowadays an active researcharea, primarily due to the diffusion of electronic devices such as smartphones, smartwatches, video cameras, and standalone sensors (e.g., inertial or physio-logical) present in our daily lives. However, one of the mainlimitations of the existing methodologies is  that it does not exist a standardworkflow that, given a HAR learning dataset, produces a first baseline estimation of some basic pattern recognition models’  quality. Furthermore, the steps of such a workflow have to be explicitly manually defined. For such purpose, this package focuses on the definition, standardization, and development of workflow for human activity recognition in depth analysis.
