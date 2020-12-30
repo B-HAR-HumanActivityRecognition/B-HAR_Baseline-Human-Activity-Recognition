@@ -71,7 +71,7 @@ def get_private_config_path():
     Get absolute path to the private config file
     """
     current_path = abspath(dirname(__file__))
-    conf_path = join(current_path, 'etc/private_config.cfg')
+    conf_path = join(current_path, 'private_config.cfg')
 
     if conf_path:
         return conf_path

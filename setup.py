@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="B-HAR baseline framework",
-    version="0.0.1",
+    version="0.0.4",
     author="B-HAR HumanActivityRecognition",
     author_email="cristian.turetta@univr.it",
     description="B-HAR: an open-source baseline framework for in depth study of human activity recognition datasets and workflows",
