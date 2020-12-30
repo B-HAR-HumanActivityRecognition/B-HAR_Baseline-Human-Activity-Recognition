@@ -23,12 +23,12 @@ from sklearn.model_selection import GridSearchCV, train_test_split, KFold
 from pathlib import Path
 from datetime import datetime
 from sklearn.svm import LinearSVC, SVR
-from har_baseline.utility.configurator import Configurator, PrivateConfigurator
-from har_baseline.models import Models, MlModels
+from b_har.utility.configurator import Configurator, PrivateConfigurator
+from b_har.models import Models, MlModels
 import logging
 
 
-class BHar:
+class B_HAR:
     _data_delimiters = {
         'tdc': (1, -1),
         'tdcp': (1, -2),
@@ -205,6 +205,9 @@ class BHar:
 
     # --- Private Methods ---
 
+    def _get_cfg_path(self):
+        return self.__cfg_path
+
     def _apply_segmentation(self, df, sampling_frequency, time_window_size, overlap):
         has_patient = 'p' in Configurator(self.__cfg_path).get('dataset', 'header_type')
 
@@ -345,10 +348,10 @@ class BHar:
             Path(new_log_dir_path).mkdir(parents=True, exist_ok=True)
 
             # Copy run settings
-            copy2('../config.cfg', new_log_dir_path)
+            copy2(self._get_cfg_path(), new_log_dir_path)
 
             # Update log dir path for future usage
-            Configurator(self.__cfg_path).set('settings', 'log_dir', new_log_dir_path)
+            Configurator(self._get_cfg_path()).set('settings', 'log_dir', new_log_dir_path)
 
             # Configure logging
             logging.basicConfig(filename=os.path.join(new_log_dir_path, 'log.rtf'), format='', level=logging.INFO)

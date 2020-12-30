@@ -13,7 +13,7 @@ from tensorflow.keras.initializers import GlorotNormal as Xavier
 from tensorflow.keras.layers.experimental.preprocessing import Rescaling
 from tensorflow.keras.layers.experimental.preprocessing import RandomZoom, RandomFlip, RandomRotation
 from tensorflow.keras.optimizers import Adam
-from har_baseline.utility.configurator import Configurator, PrivateConfigurator
+from b_har.utility.configurator import Configurator, PrivateConfigurator
 
 
 # Results are 0.5, 1, 2, 3(removed fog of 3s + epochs maybe better results) seconds
@@ -98,9 +98,9 @@ class MlModels(object):
         'K-NN': {
             'model': KNeighborsClassifier(n_jobs=-1),
             'param_grid': {
-                'n_neighbors': list(range(1, 5)),
+                'n_neighbors': [1, 3, 5],
                 'p': [1, 3, 5],
-                'metric': ['euclidean', 'manhattan', 'chebyshev', 'minkowski']
+                'metric': ['euclidean', 'manhattan']
             }
         },
         'LDA': {

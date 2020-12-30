@@ -1,6 +1,6 @@
 import unittest
-from har_baseline.baseline import BHar
-from har_baseline.utility.configurator import Configurator
+from b_har.baseline import B_HAR
+from b_har.utility.configurator import Configurator
 from datetime import datetime
 
 
@@ -10,7 +10,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_daphnet(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('daphnet', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'daphnet'))
         Configurator(self.p).set('settings', 'data_treatment', 'segmentation')
@@ -24,7 +24,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_hhar_phone(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('hhar_phone', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'hhar_phone'))
         Configurator(self.p).set('settings', 'data_treatment', 'segmentation')
@@ -38,7 +38,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_hhar_watch(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('hhar_watch', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'hhar_watch'))
         Configurator(self.p).set('settings', 'data_treatment', 'segmentation')
@@ -52,7 +52,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_mhealth(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('mhealth', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'mhealth'))
         Configurator(self.p).set('settings', 'data_treatment', 'segmentation')
@@ -66,7 +66,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_papam(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('papam', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'papam'))
         Configurator(self.p).set('settings', 'data_treatment', 'segmentation')
@@ -80,7 +80,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_wisdm_v1(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('wisdm_v1', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'wisdm_v1'))
         Configurator(self.p).set('settings', 'data_treatment', 'segmentation')
@@ -94,7 +94,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_wisdm_v2(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('wisdm_v2', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'wisdm_v2'))
         Configurator(self.p).set('settings', 'data_treatment', 'segmentation')
@@ -110,7 +110,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_daphnet_features(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('daphnet', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'daphnet'))
         Configurator(self.p).set('dataset', 'header_type', 'tdcp')
@@ -123,7 +123,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_hhar_phone_features(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('hhar_phone', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'hhar_phone'))
         Configurator(self.p).set('dataset', 'header_type', 'tdcp')
@@ -136,7 +136,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_hhar_watch_features(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('hhar_watch', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'hhar_watch'))
         Configurator(self.p).set('dataset', 'header_type', 'tdcp')
@@ -149,7 +149,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_mhealth_features(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('mhealth', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'mhealth'))
         Configurator(self.p).set('dataset', 'header_type', 'dcp')
@@ -162,7 +162,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_papam_features(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('papam', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'papam'))
         Configurator(self.p).set('dataset', 'header_type', 'tdcp')
@@ -175,7 +175,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_wisdm_v1_features(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('wisdm_v1', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'wisdm_v1'))
         Configurator(self.p).set('dataset', 'header_type', 'tdcp')
@@ -188,7 +188,7 @@ class StatsTestCase(unittest.TestCase):
 
     def test_wisdm_v2_features(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
-        bhar = BHar(self.p)
+        bhar = B_HAR(self.p)
         print('%s -> %s' % ('wisdm_v2', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'wisdm_v2'))
         Configurator(self.p).set('dataset', 'header_type', 'tdcp')

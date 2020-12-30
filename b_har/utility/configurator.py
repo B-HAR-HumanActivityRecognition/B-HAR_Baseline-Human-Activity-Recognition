@@ -1,7 +1,6 @@
 from __future__ import absolute_import, division
 import configparser
 from os import environ
-import os
 from os.path import abspath, dirname, join
 
 
