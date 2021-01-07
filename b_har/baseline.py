@@ -26,6 +26,8 @@ from sklearn.svm import LinearSVC, SVR
 from b_har.utility.configurator import Configurator, PrivateConfigurator
 from b_har.models import Models, MlModels
 import logging
+import progressbar
+from timeit import default_timer as timer
 
 
 class B_HAR:
@@ -655,169 +657,187 @@ class B_HAR:
 
     def _data_preprocessing(self, df, drop_class, drop_patient, split_method, normalisation_method, selection_method,
                             balancing_method, ids_test_set: list = None):
+        widgets = [
+            'Data Preprocessing',
+            ' [', progressbar.Timer(), '] ',
+            progressbar.Bar(),
+            ' (', progressbar.ETA(), ') ',
+        ]
         logging.info('--- Data Preprocessing ---')
 
-        # Drop unnecessary classes
-        if drop_class is not None:
-            for class_name in drop_class:
-                indexes = df[(df['CLASS'] == class_name)].index
-                df.drop(indexes, inplace=True)
+        with progressbar.ProgressBar(widgets=widgets, max_value=8) as bar:
+            # Drop unnecessary classes
+            if drop_class is not None:
+                for class_name in drop_class:
+                    indexes = df[(df['CLASS'] == class_name)].index
+                    df.drop(indexes, inplace=True)
 
-        # Drop unnecessary patients
-        if drop_patient is not None:
-            for patient_id in drop_patient:
-                indexes = df[(df['P_ID'] == patient_id)].index
-                df.drop(indexes, inplace=True)
+            # Drop unnecessary patients
+            if drop_patient is not None:
+                for patient_id in drop_patient:
+                    indexes = df[(df['P_ID'] == patient_id)].index
+                    df.drop(indexes, inplace=True)
 
-        # Class renaming
-        if df['CLASS'].unique().dtype == int:
-            old_labels = sorted(df['CLASS'].unique())
-        else:
-            old_labels = df['CLASS'].unique()
-        original_name_labels = list()
-        logging.info('--> New labels:')
-        for new, old in zip(range(len(old_labels)), old_labels):
-            logging.info('• %s --> %s' % (str(old), str(new)))
-            original_name_labels.append(str(old))
-            df['CLASS'] = df['CLASS'].replace({old: new})
+            bar.update()
 
-        # Train/Test split
-        header_type = Configurator(self.__cfg_path).get('dataset', 'header_type')
-        if split_method == 'inter' and 'p' in header_type:
-            # Define inter patient training and validation datasets
-            training_dataset, validation_dataset = self._select_patients_training_test(df, ids_test_set)
-        elif split_method == 'intra' and 'p' in header_type or split_method == 'holdout':
-            training_dataset, validation_dataset = train_test_split(df,
-                                                                    shuffle=True,
-                                                                    test_size=Configurator(self.__cfg_path).getfloat(
-                                                                        'training',
-                                                                        'test_size'),
-                                                                    random_state=28)
-        else:
-            training_dataset = None
-            validation_dataset = None
-            logging.info('*** Error: %s not a valid train/test split method ***' % split_method)
-            print('*** Error: %s not a valid train/test split method ***' % split_method)
-            exit(12)
+            # Class renaming
+            if df['CLASS'].unique().dtype == int:
+                old_labels = sorted(df['CLASS'].unique())
+            else:
+                old_labels = df['CLASS'].unique()
+            original_name_labels = list()
+            logging.info('--> New labels:')
+            for new, old in zip(range(len(old_labels)), old_labels):
+                logging.info('• %s --> %s' % (str(old), str(new)))
+                original_name_labels.append(str(old))
+                df['CLASS'] = df['CLASS'].replace({old: new})
 
-        # Get training data and labels
-        if 'P_ID' in training_dataset.columns:
-            # Drop P_ID if exists
-            training_data = training_dataset.drop(['CLASS', 'P_ID'], axis=1)
-            validation_data = validation_dataset.drop(['CLASS', 'P_ID'], axis=1)
+            bar.update()
 
-        else:
-            training_data = training_dataset.drop(['CLASS'], axis=1)
-            validation_data = validation_dataset.drop(['CLASS'], axis=1)
+            # Train/Test split
+            header_type = Configurator(self.__cfg_path).get('dataset', 'header_type')
+            if split_method == 'inter' and 'p' in header_type:
+                # Define inter patient training and validation datasets
+                training_dataset, validation_dataset = self._select_patients_training_test(df, ids_test_set)
+            elif split_method == 'intra' and 'p' in header_type or split_method == 'holdout':
+                training_dataset, validation_dataset = train_test_split(df,
+                                                                        shuffle=True,
+                                                                        test_size=Configurator(self.__cfg_path).getfloat(
+                                                                            'training',
+                                                                            'test_size'),
+                                                                        random_state=28)
+            else:
+                training_dataset = None
+                validation_dataset = None
+                logging.info('*** Error: %s not a valid train/test split method ***' % split_method)
+                print('*** Error: %s not a valid train/test split method ***' % split_method)
+                exit(12)
 
-        training_labels = training_dataset['CLASS']
-        validation_labels = validation_dataset['CLASS']
+            bar.update()
 
-        del training_dataset, validation_dataset
-
-        # Normalisation
-        if normalisation_method == 'minmax':
-            scaler = preprocessing.MinMaxScaler()
-        elif normalisation_method == 'robust':
-            scaler = preprocessing.RobustScaler()
-        else:
-            scaler = preprocessing.StandardScaler()
-
-        training_data = scaler.fit_transform(training_data)
-        validation_data = scaler.transform(validation_data)
-
-        if Configurator(self.__cfg_path).get('settings', 'data_treatment') == 'features_extraction':
-            # Create a directory in order to save extracted features names
-            features_path = os.path.join(Configurator(self.__cfg_path).get('settings', 'log_dir'), 'features')
-            Path(features_path).mkdir(parents=True, exist_ok=True)
-
-            with open(os.path.join(features_path, 'extracted_features.rtf'), 'a+') as exf:
-                exf.write('%s' % '\n'.join(list(df.columns)))
-        else:
-            features_path = None
-
-        if Configurator(self.__cfg_path).getboolean('settings', 'features_selection') and Configurator(
-                self.__cfg_path).get('settings', 'data_treatment') == 'features_extraction':
-            # Highly correlated features are removed
-            # corr_features = ts.correlated_features(training_data)
-            # training_data.drop(corr_features, axis=1, inplace=True)
-            # validation_data.drop(corr_features, axis=1, inplace=True)
-
-            if selection_method == 'variance':
-                # Remove low variance features
-                selector = VarianceThreshold()
-                training_data = selector.fit_transform(training_data)
-                validation_data = selector.transform(validation_data)
-
-            elif selection_method == 'l1':
-                lsvc = LinearSVC(C=0.01, penalty="l1", dual=False).fit(training_data, training_labels)
-                model = SelectFromModel(lsvc, prefit=True)
-                training_data = model.fit_transform(training_data)
-                validation_data = model.transform(validation_data)
-
-            elif selection_method == 'tree-based':
-                clf = ExtraTreesClassifier(n_estimators=50)
-                clf = clf.fit(training_data, training_labels)
-                model = SelectFromModel(clf, prefit=True)
-                training_data = model.fit_transform(training_data)
-                validation_data = model.transform(validation_data)
-
-            elif selection_method == 'recursive':
-                estimator = SVR(kernel="linear")
-                selector = RFE(estimator, n_features_to_select=5, step=1)
-                training_data = selector.fit_transform(training_data, training_labels)
-                validation_data = selector.transform(validation_data)
+            # Get training data and labels
+            if 'P_ID' in training_dataset.columns:
+                # Drop P_ID if exists
+                training_data = training_dataset.drop(['CLASS', 'P_ID'], axis=1)
+                validation_data = validation_dataset.drop(['CLASS', 'P_ID'], axis=1)
 
             else:
-                logging.info('*** Error: %s not implemented features selection technique ***' % str(selection_method))
-                print('*** Error: %s not implemented features selection technique ***' % str(selection_method))
-                exit(5)
+                training_data = training_dataset.drop(['CLASS'], axis=1)
+                validation_data = validation_dataset.drop(['CLASS'], axis=1)
 
-            # Save selected features names
-            # TODO: Check if it works
-            # with open(os.path.join(features_path, 'selected_features.rtf'), 'a+') as exf:
-            #     exf.write('%s' % '\n'.join(list(training_data.columns)))
+            training_labels = training_dataset['CLASS']
+            validation_labels = validation_dataset['CLASS']
 
-            logging.info('--> Features selected: %s' % str(validation_data.shape[1]))
+            del training_dataset, validation_dataset
 
-        # Balancing
-        resampling_technique = Configurator(self.__cfg_path).get('settings', 'resampling')
-        if resampling_technique == 'under':
-            if balancing_method == 'random_under':
-                sampler = RandomUnderSampler()
-            elif balancing_method == 'near_miss':
-                sampler = NearMiss()
-            elif balancing_method == 'edited_nn':
-                sampler = EditedNearestNeighbours()
+            bar.update()
+
+            # Normalisation
+            if normalisation_method == 'minmax':
+                scaler = preprocessing.MinMaxScaler()
+            elif normalisation_method == 'robust':
+                scaler = preprocessing.RobustScaler()
             else:
-                logging.info(
-                    '*** Fallback: not recognised %s, using RandomUnderSampler instead ***' % balancing_method)
-                sampler = RandomUnderSampler()
-        elif resampling_technique == 'over':
-            if balancing_method == 'smote':
-                sampler = SMOTE()
-            elif balancing_method == 'adasyn':
-                sampler = ADASYN()
-            elif balancing_method == 'kmeans_smote':
-                sampler = KMeansSMOTE(k_neighbors=3)
-            elif balancing_method == 'random_over':
-                sampler = RandomOverSampler()
+                scaler = preprocessing.StandardScaler()
+
+            training_data = scaler.fit_transform(training_data)
+            validation_data = scaler.transform(validation_data)
+
+            bar.update()
+
+            if Configurator(self.__cfg_path).get('settings', 'data_treatment') == 'features_extraction':
+                # Create a directory in order to save extracted features names
+                features_path = os.path.join(Configurator(self.__cfg_path).get('settings', 'log_dir'), 'features')
+                Path(features_path).mkdir(parents=True, exist_ok=True)
+
+                with open(os.path.join(features_path, 'extracted_features.rtf'), 'a+') as exf:
+                    exf.write('%s' % '\n'.join(list(df.columns)))
             else:
-                logging.info(
-                    '*** Fallback: not recognised %s, using RandomOverSampler instead ***' % balancing_method)
-                sampler = RandomOverSampler()
-        else:
-            balancing_method = ''
-            sampler = None
+                features_path = None
 
-        if sampler is not None:
-            training_data, training_labels = sampler.fit_resample(training_data, training_labels)
-        else:
-            training_data, training_labels = training_data, training_labels
+            bar.update()
 
-        logging.info('--> Applied %s %s' % (resampling_technique, balancing_method))
-        logging.info('--> Train test shape: %s' % str(training_data.shape))
-        logging.info('--> Validation test shape: %s' % str(validation_data.shape))
+            if Configurator(self.__cfg_path).getboolean('settings', 'features_selection') and Configurator(
+                    self.__cfg_path).get('settings', 'data_treatment') == 'features_extraction':
+                # Highly correlated features are removed
+                # corr_features = ts.correlated_features(training_data)
+                # training_data.drop(corr_features, axis=1, inplace=True)
+                # validation_data.drop(corr_features, axis=1, inplace=True)
+
+                if selection_method == 'variance':
+                    # Remove low variance features
+                    selector = VarianceThreshold()
+                    training_data = selector.fit_transform(training_data)
+                    validation_data = selector.transform(validation_data)
+
+                elif selection_method == 'l1':
+                    lsvc = LinearSVC(C=0.01, penalty="l1", dual=False).fit(training_data, training_labels)
+                    model = SelectFromModel(lsvc, prefit=True)
+                    training_data = model.fit_transform(training_data)
+                    validation_data = model.transform(validation_data)
+
+                elif selection_method == 'tree-based':
+                    clf = ExtraTreesClassifier(n_estimators=50)
+                    clf = clf.fit(training_data, training_labels)
+                    model = SelectFromModel(clf, prefit=True)
+                    training_data = model.fit_transform(training_data)
+                    validation_data = model.transform(validation_data)
+
+                elif selection_method == 'recursive':
+                    estimator = SVR(kernel="linear")
+                    selector = RFE(estimator, n_features_to_select=5, step=1)
+                    training_data = selector.fit_transform(training_data, training_labels)
+                    validation_data = selector.transform(validation_data)
+
+                else:
+                    logging.info('*** Error: %s not implemented features selection technique ***' % str(selection_method))
+                    print('*** Error: %s not implemented features selection technique ***' % str(selection_method))
+                    exit(5)
+
+                logging.info('--> Features selected: %s' % str(validation_data.shape[1]))
+
+            bar.update()
+
+            # Balancing
+            resampling_technique = Configurator(self.__cfg_path).get('settings', 'resampling')
+            if resampling_technique == 'under':
+                if balancing_method == 'random_under':
+                    sampler = RandomUnderSampler()
+                elif balancing_method == 'near_miss':
+                    sampler = NearMiss()
+                elif balancing_method == 'edited_nn':
+                    sampler = EditedNearestNeighbours()
+                else:
+                    logging.info(
+                        '*** Fallback: not recognised %s, using RandomUnderSampler instead ***' % balancing_method)
+                    sampler = RandomUnderSampler()
+            elif resampling_technique == 'over':
+                if balancing_method == 'smote':
+                    sampler = SMOTE()
+                elif balancing_method == 'adasyn':
+                    sampler = ADASYN()
+                elif balancing_method == 'kmeans_smote':
+                    sampler = KMeansSMOTE(k_neighbors=3)
+                elif balancing_method == 'random_over':
+                    sampler = RandomOverSampler()
+                else:
+                    logging.info(
+                        '*** Fallback: not recognised %s, using RandomOverSampler instead ***' % balancing_method)
+                    sampler = RandomOverSampler()
+            else:
+                balancing_method = ''
+                sampler = None
+
+            if sampler is not None:
+                training_data, training_labels = sampler.fit_resample(training_data, training_labels)
+            else:
+                training_data, training_labels = training_data, training_labels
+
+            bar.update()
+
+            logging.info('--> Applied %s %s' % (resampling_technique, balancing_method))
+            logging.info('--> Train test shape: %s' % str(training_data.shape))
+            logging.info('--> Validation test shape: %s' % str(validation_data.shape))
 
         return training_data, validation_data, training_labels.values, validation_labels.values, original_name_labels
 
@@ -876,78 +896,95 @@ class B_HAR:
         frames = list()
         is_first = True
         header = None
+        widgets = [
+            'Loading Dataset',
+            ' [', progressbar.Timer(), '] ',
+            progressbar.Bar(),
+            ' (', progressbar.ETA(), ') ',
+        ]
 
-        for file in os.listdir(ds_dir):
-            if (file.endswith('.csv') or file.endswith('.txt')) and not file.startswith('.'):
-                # Derive header if not exists
-                if is_first and not has_header:
-                    is_first = False
-                    header = self._derive_headers(pd.read_csv(os.path.join(ds_dir, file), sep=separator).shape[1], header_type)
+        with progressbar.ProgressBar(widgets=widgets, max_value=len(os.listdir(ds_dir))) as bar:
+            for file in os.listdir(ds_dir):
+                if (file.endswith('.csv') or file.endswith('.txt')) and not file.startswith('.'):
+                    # Derive header if not exists
+                    if is_first and not has_header:
+                        is_first = False
+                        header = self._derive_headers(pd.read_csv(os.path.join(ds_dir, file), sep=separator).shape[1], header_type)
 
-                # Append dataframes
-                if has_header:
-                    frames.append(pd.read_csv(os.path.join(ds_dir, file), sep=separator))
-                else:
-                    df_i = pd.read_csv(os.path.join(ds_dir, file), sep=separator, header=None)
-                    df_i.columns = header
-                    frames.append(df_i)
+                    # Append dataframes
+                    if has_header:
+                        frames.append(pd.read_csv(os.path.join(ds_dir, file), sep=separator))
+                    else:
+                        df_i = pd.read_csv(os.path.join(ds_dir, file), sep=separator, header=None)
+                        df_i.columns = header
+                        frames.append(df_i)
+                bar.update()
 
         return pd.concat(frames, ignore_index=True)
 
     def _clean_data(self, df, sampling_frequency, high_cutoff, low_cutoff, sub_method, header_type):
+        widgets = [
+            'Cleaning Data',
+            ' [', progressbar.Timer(), '] ',
+            progressbar.Bar(),
+            ' (', progressbar.ETA(), ') ',
+        ]
+
         logging.info('--- Cleaning data ---')
+        with progressbar.ProgressBar(widgets=widgets, max_value=2) as bar:
+            # Handle Data Errors: clean from NaN and infinite values
+            df.replace([math.inf, -math.inf], np.nan, inplace=True)
+            if sub_method == 'mean':
+                df.fillna(df.mean(), inplace=True)
+            elif sub_method == 'forward':
+                df.fillna(method='ffill', inplace=True)
+            elif sub_method == 'backward':
+                df.fillna(method='bfill', inplace=True)
+            elif sub_method == 'constant':
+                df = df.fillna(Configurator(self.__cfg_path).getfloat('cleaning', 'constant_value'))
+            else:
+                logging.info('*** Error: %s is not a valid substitution method, skipped ***' % sub_method)
 
-        # Handle Data Errors: clean from NaN and infinite values
-        df.replace([math.inf, -math.inf], np.nan, inplace=True)
-        if sub_method == 'mean':
-            df.fillna(df.mean(), inplace=True)
-        elif sub_method == 'forward':
-            df.fillna(method='ffill', inplace=True)
-        elif sub_method == 'backward':
-            df.fillna(method='bfill', inplace=True)
-        elif sub_method == 'constant':
-            df = df.fillna(Configurator(self.__cfg_path).getfloat('cleaning', 'constant_value'))
-        else:
-            logging.info('*** Error: %s is not a valid substitution method, skipped ***' % sub_method)
+            df_filtered = df.reset_index(drop=True)
+            bar.update()
 
-        df_filtered = df.reset_index(drop=True)
+            # Apply filter
+            filter_name = Configurator(self.__cfg_path).get('cleaning', 'filter')
+            filter_order = Configurator(self.__cfg_path).getint('cleaning', 'filter_order')
 
-        # Apply filter
-        filter_name = Configurator(self.__cfg_path).get('cleaning', 'filter')
-        filter_order = Configurator(self.__cfg_path).getint('cleaning', 'filter_order')
+            if 'low' in filter_name:
+                cutoff = low_cutoff
+            elif 'high' in filter_name:
+                cutoff = high_cutoff
+            elif filter_name == 'bandpass':
+                cutoff = (high_cutoff, low_cutoff)
+            elif filter_name == 'no':
+                cutoff = None
+            else:
+                cutoff = None
+                logging.info('*** Error: invalid filter name %s ***' % filter_name)
+                print('*** Error: invalid filter name %s ***' % filter_name)
+                exit(11)
 
-        if 'low' in filter_name:
-            cutoff = low_cutoff
-        elif 'high' in filter_name:
-            cutoff = high_cutoff
-        elif filter_name == 'bandpass':
-            cutoff = (high_cutoff, low_cutoff)
-        elif filter_name == 'no':
-            cutoff = None
-        else:
-            cutoff = None
-            logging.info('*** Error: invalid filter name %s ***' % filter_name)
-            print('*** Error: invalid filter name %s ***' % filter_name)
-            exit(11)
+            if cutoff is not None:
+                df_filtered = pd.DataFrame(
+                    self._apply_filter(
+                        df=df_filtered,
+                        filter_name=filter_name,
+                        sample_rate=sampling_frequency,
+                        frequency_cutoff=cutoff,
+                        order=filter_order
+                    ),
+                    columns=list(df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]])
+                )
 
-        if cutoff is not None:
-            df_filtered = pd.DataFrame(
-                self._apply_filter(
-                    df=df_filtered,
-                    filter_name=filter_name,
-                    sample_rate=sampling_frequency,
-                    frequency_cutoff=cutoff,
-                    order=filter_order
-                ),
-                columns=list(df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]])
-            )
-
-            # Add class and other to the filtered dataset
-            df_filtered['CLASS'] = df['CLASS']
-            if 'p' in header_type:
-                df_filtered['P_ID'] = df['P_ID']
-            if 't' in header_type:
-                df_filtered.insert(0, 'time', df['time'])
+                # Add class and other to the filtered dataset
+                df_filtered['CLASS'] = df['CLASS']
+                if 'p' in header_type:
+                    df_filtered['P_ID'] = df['P_ID']
+                if 't' in header_type:
+                    df_filtered.insert(0, 'time', df['time'])
+            bar.update()
 
         return df_filtered
 
@@ -974,7 +1011,7 @@ class B_HAR:
                                                        fs=sampling_frequency,
                                                        window_size=time_window,
                                                        overlap=tsfel_overlap,
-                                                       verbose=0)
+                                                       verbose=1)
         Y_features = self._labels_windowing(y, sampling_frequency, time_window, overlap)
 
         # Handling eventual missing values from the feature extraction
@@ -989,6 +1026,13 @@ class B_HAR:
         return features_df
 
     def _start_ml_evaluation(self, x_train, y_train, x_test, y_test, models_and_params):
+        widgets = [
+            'ML Evaluation',
+            ' [', progressbar.Timer(), '] ',
+            progressbar.Bar(),
+            ' (', progressbar.ETA(), ') ',
+        ]
+
         # Create ml directory if not exists
         Path(os.path.join(Configurator(self.__cfg_path).get('settings', 'log_dir'), 'machine_learning')).mkdir(
             parents=True,
@@ -1002,50 +1046,75 @@ class B_HAR:
         for m in models_and_params:
             mp.update({m: MlModels().clf_model_params[m]})
 
-        for name, param in mp.items():
-            logging.info(
-                '--> Model %s: %ss time window' % (name, Configurator(self.__cfg_path).get('settings', 'time')))
-            clf = GridSearchCV(param['model'], param['param_grid'], scoring='accuracy',
-                               n_jobs=-1)  # scoring='recall_macro'
+        with progressbar.ProgressBar(widgets=widgets, max_value=len(mp.keys())) as bar:
+            for name, param in mp.items():
+                logging.info(
+                    '--> Model %s: %ss time window' % (name, Configurator(self.__cfg_path).get('settings', 'time')))
+                clf = GridSearchCV(param['model'], param['param_grid'], scoring='accuracy',
+                                   n_jobs=-1)  # scoring='recall_macro'
 
-            # Raw data
-            clf.fit(x_train, y_train)
-            y_pred = clf.predict(x_test)
+                # Raw data
+                start_training = timer()
+                clf.fit(x_train, y_train)
+                stop_training = timer()
+                logging.info('--> Elapsed time training: %s' % self._to_readable_time(stop_training - start_training))
 
-            # Metrics
-            metrics1 = sensitivity_specificity_support(y_test, y_pred, average='weighted')
-            metrics2 = precision_recall_fscore_support(y_test, y_pred, average='weighted')
-            metrics3 = accuracy_score(y_test, y_pred, normalize=True)
+                start_prediction = timer()
+                y_pred = clf.predict(x_test)
+                stop_prediction = timer()
+                logging.info('--> Elapsed time prediction: %s' % self._to_readable_time(stop_prediction - start_prediction))
 
-            # Create Report
-            report_raw.append({
-                'clf': name,
-                'y_pred': y_pred,
-                'sensitivity': metrics1[0],
-                'specificity': metrics1[1],
-                'precision': metrics2[0],
-                'recall': metrics2[1],
-                'f1-score': metrics2[2],
-                'accuracy': metrics3
-            })
+                # Metrics
+                metrics1 = sensitivity_specificity_support(y_test, y_pred, average='weighted')
+                metrics2 = precision_recall_fscore_support(y_test, y_pred, average='weighted')
+                metrics3 = accuracy_score(y_test, y_pred, normalize=True)
 
-            self._cm_analysis(y_test, y_pred, np.unique(y_train), '', name, 'machine_learning')
+                # Create Report
+                report_raw.append({
+                    'clf': name,
+                    'y_pred': y_pred,
+                    'sensitivity': metrics1[0],
+                    'specificity': metrics1[1],
+                    'precision': metrics2[0],
+                    'recall': metrics2[1],
+                    'f1-score': metrics2[2],
+                    'accuracy': metrics3
+                })
 
-            logging.log(msg=classification_report(y_test, y_pred), level=logging.INFO)
-            logging.log(msg='--> clf: %s\n'
-                            '   • specificity: %s\n'
-                            '   • sensitivity: %s\n'
-                            '   • precision: %s\n'
-                            '   • accuracy: %s\n'
-                            '   • recall: %s\n'
-                            '   • f1-score: %s\n' % (
-                                name, metrics1[1], metrics1[0], metrics2[0], metrics3, metrics2[1], metrics2[0]),
-                        level=logging.INFO)
+                self._cm_analysis(y_test, y_pred, np.unique(y_train), '', name, 'machine_learning')
 
-        # logging.log(msg=pd.DataFrame(report_raw).head(len(models_and_params)), level=logging.INFO)
+                logging.log(msg=classification_report(y_test, y_pred), level=logging.INFO)
+                logging.log(msg='--> clf: %s\n'
+                                '   • specificity: %s\n'
+                                '   • sensitivity: %s\n'
+                                '   • precision: %s\n'
+                                '   • accuracy: %s\n'
+                                '   • recall: %s\n'
+                                '   • f1-score: %s\n' % (
+                                    name, metrics1[1], metrics1[0], metrics2[0], metrics3, metrics2[1], metrics2[0]),
+                            level=logging.INFO)
+                bar.update()
+
+    @staticmethod
+    def _to_readable_time(t):
+        unit = 's'
+        if t > 60:
+            unit = 'm'
+            t = t / 60
+        if t > 60:
+            unit = 'h'
+            t = t / 60
+        return '%s%s' % (str(round(t, 3)), unit)
 
     def _start_cnn_evaluation(self, x_train, y_train, x_test, y_test, models_name: list, epochs, n_fold: int,
                               me_loss_threshold, class_values, title):
+        widgets = [
+            'DL Evaluation',
+            ' [', progressbar.Timer(), '] ',
+            progressbar.Bar(),
+            ' (', progressbar.ETA(), ') ',
+        ]
+
         # Create ml directory if not exists
         Path(os.path.join(Configurator(self.__cfg_path).get('settings', 'log_dir'), 'deep_learning')).mkdir(
             parents=True,
@@ -1054,27 +1123,43 @@ class B_HAR:
         logging.log(msg='--- Starting CNN evaluations ---', level=logging.INFO)
         kf = KFold(n_fold, shuffle=True, random_state=0)
 
-        for model_name in models_name:
-            # Set output size of CNN
-            PrivateConfigurator().set('cnn', 'output', str(len(np.unique(y_train))))
+        with progressbar.ProgressBar(widgets=widgets, max_value=len(models_name)) as bar:
+            for model_name in models_name:
+                # Set output size of CNN
+                PrivateConfigurator().set('cnn', 'output', str(len(np.unique(y_train))))
 
-            logging.log(msg='--> Model %s: %s time window, %s epochs, %s me threshold' %
-                            (model_name, x_train[0].shape, epochs, me_loss_threshold), level=logging.INFO)
-            # Get the model
-            model = Models(Configurator(self.__cfg_path).getfloat('settings', 'time'),
-                           Configurator(self.__cfg_path).getfloat('settings', 'sampling_frequency')).get_model(
-                model_name)
+                logging.log(msg='--> Model %s: %s time window, %s epochs, %s me threshold' %
+                                (model_name, x_train[0].shape, epochs, me_loss_threshold), level=logging.INFO)
+                # Get the model
+                model = Models(Configurator(self.__cfg_path).getfloat('settings', 'time'),
+                               Configurator(self.__cfg_path).getfloat('settings', 'sampling_frequency')).get_model(
+                    model_name)
 
-            # Train the model
-            score, trained_models = self._do_k_fold(x_train, y_train, kf, model, '%s %s' % (model_name, title),
-                                                    epochs)
-            # Model Ensembles
-            self._model_ensembles(trained_models, model, x_test, y_test, '%s %s' % (model_name, title),
-                                  threshold=me_loss_threshold,
-                                  class_values=class_values)
+                # Train the model
+                start_training = timer()
+                score, trained_models = self._do_k_fold(x_train, y_train, kf, model, '%s %s' % (model_name, title),
+                                                        epochs)
+                stop_training = timer()
+                logging.info('--> Elapsed time training: %s' % self._to_readable_time(stop_training - start_training))
+
+                # Model Ensembles
+                start_prediction = timer()
+                self._model_ensembles(trained_models, model, x_test, y_test, '%s %s' % (model_name, title),
+                                      threshold=me_loss_threshold,
+                                      class_values=class_values)
+                stop_prediction = timer()
+                logging.info(
+                    '--> Elapsed time prediction: %s' % self._to_readable_time(stop_prediction - start_prediction))
+                bar.update()
 
     def _get_window(self, df: pd.DataFrame, sampling_frequency: int, window_size: int, overlap: float):
         hop_size = window_size - int(sampling_frequency * overlap)
+        widgets = [
+            'Segmentation',
+            ' [', progressbar.Timer(), '] ',
+            progressbar.Bar(),
+            ' (', progressbar.ETA(), ') ',
+        ]
 
         data = list()
         labels = list()
@@ -1082,21 +1167,22 @@ class B_HAR:
         has_patient = 'p' in Configurator(self.__cfg_path).get('dataset', 'header_type')
 
         columns = df.columns[self._data_delimiters['tdcp'][0]: self._data_delimiters['tdcp'][1]]
+        with progressbar.ProgressBar(widgets=widgets, max_value=len(df) - window_size + 1) as bar:
+            for i in range(0, len(df) - window_size + 1, hop_size):
+                window = list()
+                for column in columns:
+                    x_i = df[column].values[i: i + window_size]
+                    window.append(x_i)
 
-        for i in range(0, len(df) - window_size + 1, hop_size):
-            window = list()
-            for column in columns:
-                x_i = df[column].values[i: i + window_size]
-                window.append(x_i)
+                # Associate a label for the current window based on mode
+                label = stats.mode(df['CLASS'].values[i: i + window_size])[0][0]
 
-            # Associate a label for the current window based on mode
-            label = stats.mode(df['CLASS'].values[i: i + window_size])[0][0]
+                data.append(np.array(window).T)
+                labels.append(label)
 
-            data.append(np.array(window).T)
-            labels.append(label)
-
-            if has_patient:
-                patients.append(stats.mode(df['P_ID'].values[i: i + window_size])[0][0])
+                if has_patient:
+                    patients.append(stats.mode(df['P_ID'].values[i: i + window_size])[0][0])
+                bar.update()
 
         if has_patient:
             return np.asarray(data), np.asarray(labels), np.asarray(patients)
