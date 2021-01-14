@@ -123,7 +123,7 @@ class MlModels(object):
             'param_grid': {
                 'criterion': ['gini', 'entropy'],
                 'max_features': ['auto', 'sqrt', 'log2'],
-                'min_samples_split': [2, 3, 4, 5]
+                'min_samples_split': [2, 3, 5]
             }
         },
         'DT': {
@@ -131,7 +131,7 @@ class MlModels(object):
             'param_grid': {
                 'criterion': ['gini', 'entropy'],
                 'splitter': ['best', 'random'],
-                'min_samples_split': [2, 3, 4, 5],
+                'min_samples_split': [2, 3, 5],
                 'max_features': ['auto', 'sqrt', 'log2']
             }
         }

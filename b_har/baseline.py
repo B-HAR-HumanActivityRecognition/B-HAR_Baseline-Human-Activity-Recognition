@@ -130,65 +130,84 @@ class B_HAR:
                                Configurator(self.__cfg_path).getfloat('settings', 'time'))
 
         # --- Load Data ---
-        dataset = self._decode_csv(ds_dir=Configurator(self.__cfg_path).get('dataset', 'path'),
-                                   separator=Configurator(self.__cfg_path).get('dataset', 'separator', fallback=' '),
-                                   header_type=Configurator(self.__cfg_path).get('dataset', 'header_type'),
-                                   has_header=Configurator(self.__cfg_path).getboolean('dataset', 'has_header')
-                                   )
+        try:
+            dataset = self._decode_csv(ds_dir=Configurator(self.__cfg_path).get('dataset', 'path'),
+                                       separator=Configurator(self.__cfg_path).get('dataset', 'separator', fallback=' '),
+                                       header_type=Configurator(self.__cfg_path).get('dataset', 'header_type'),
+                                       has_header=Configurator(self.__cfg_path).getboolean('dataset', 'has_header')
+                                       )
+        except Exception as e:
+            print('Failed to load data.')
+            print(e.args)
+            exit(10)
         # -----------------
 
         # --- Data Cleaning  ---
-        dataset = self._clean_data(df=dataset,
-                                   sampling_frequency=Configurator(self.__cfg_path).getint('settings',
-                                                                                           'sampling_frequency'),
-                                   high_cutoff=Configurator(self.__cfg_path).getint('cleaning', 'high_cut',
-                                                                                    fallback=None),
-                                   low_cutoff=Configurator(self.__cfg_path).getint('cleaning', 'low_cut',
-                                                                                   fallback=None),
-                                   sub_method=Configurator(self.__cfg_path).get('cleaning', 'sub_method'),
-                                   header_type=Configurator(self.__cfg_path).get('dataset', 'header_type')
-                                   )
+        try:
+            dataset = self._clean_data(df=dataset,
+                                       sampling_frequency=Configurator(self.__cfg_path).getint('settings', 'sampling_frequency'),
+                                       high_cutoff=Configurator(self.__cfg_path).getint('cleaning', 'high_cut', fallback=None),
+                                       low_cutoff=Configurator(self.__cfg_path).getint('cleaning', 'low_cut', fallback=None),
+                                       sub_method=Configurator(self.__cfg_path).get('cleaning', 'sub_method'),
+                                       header_type=Configurator(self.__cfg_path).get('dataset', 'header_type')
+                                       )
+        except Exception as e:
+            print('Failed to clean data.')
+            print(e.args)
+            exit(20)
         # -----------------
 
         # --- Data Treatment ---
         data_treatment_type = Configurator(self.__cfg_path).get('settings', 'data_treatment')
         if data_treatment_type == 'features_extraction':
-            dt_dataset = self._features_extraction(df=dataset,
-                                                   sampling_frequency=Configurator(self.__cfg_path).getint('settings',
-                                                                                                           'sampling_frequency'),
-                                                   time_window=time_window_size,
-                                                   overlap=Configurator(self.__cfg_path).getfloat('settings',
-                                                                                                  'overlap'),
-                                                   header_type=Configurator(self.__cfg_path).get('dataset',
-                                                                                                 'header_type'))
+            try:
+                dt_dataset = self._features_extraction(df=dataset,
+                                                       sampling_frequency=Configurator(self.__cfg_path).getint('settings', 'sampling_frequency'),
+                                                       time_window=time_window_size,
+                                                       overlap=Configurator(self.__cfg_path).getfloat('settings', 'overlap'),
+                                                       header_type=Configurator(self.__cfg_path).get('dataset', 'header_type'))
+            except Exception as e:
+                print('Failed to extract features.')
+                print(e.args)
+                exit(30)
 
         elif data_treatment_type == 'segmentation':
-            dt_dataset = self._apply_segmentation(df=dataset,
-                                                  sampling_frequency=Configurator(self.__cfg_path).getint('settings',
-                                                                                                          'sampling_frequency'),
-                                                  time_window_size=time_window_size,
-                                                  overlap=Configurator(self.__cfg_path).getfloat('settings', 'overlap'))
+            try:
+                dt_dataset = self._apply_segmentation(df=dataset,
+                                                      sampling_frequency=Configurator(self.__cfg_path).getint('settings', 'sampling_frequency'),
+                                                      time_window_size=time_window_size,
+                                                      overlap=Configurator(self.__cfg_path).getfloat('settings', 'overlap'))
+            except Exception as e:
+                print('Failed during data segmentation.')
+                print(e.args)
+                exit(40)
 
         elif data_treatment_type == 'raw':
             dt_dataset = dataset
 
         else:
+            print('*** Fallback: not recognised %s, using Raw instead ***' % data_treatment_type)
             logging.info('*** Fallback: not recognised %s, using Raw instead ***' % data_treatment_type)
             dt_dataset = dataset
 
         # ----------------------
 
         # --- Preprocessing ---
-        X_train_set, X_validation_set, Y_train_set, Y_validation_set, class_labels = self._data_preprocessing(
-            df=dt_dataset,
-            drop_class=discard_class,
-            drop_patient=discard_patients,
-            split_method=Configurator(self.__cfg_path).get('preprocessing', 'split_method'),
-            normalisation_method=Configurator(self.__cfg_path).get('preprocessing', 'normalisation_method'),
-            selection_method=Configurator(self.__cfg_path).get('preprocessing', 'selection_method'),
-            balancing_method=Configurator(self.__cfg_path).get('preprocessing', 'balancing_method'),
-            ids_test_set=ids_test
-        )
+        try:
+            X_train_set, X_validation_set, Y_train_set, Y_validation_set, class_labels = self._data_preprocessing(
+                df=dt_dataset,
+                drop_class=discard_class,
+                drop_patient=discard_patients,
+                split_method=Configurator(self.__cfg_path).get('preprocessing', 'split_method'),
+                normalisation_method=Configurator(self.__cfg_path).get('preprocessing', 'normalisation_method'),
+                selection_method=Configurator(self.__cfg_path).get('preprocessing', 'selection_method'),
+                balancing_method=Configurator(self.__cfg_path).get('preprocessing', 'balancing_method'),
+                ids_test_set=ids_test
+            )
+        except Exception as e:
+            print('Failed during data preprocessing.')
+            print(e.args)
+            exit(50)
         # ---------------------
 
         # --- Start ML Evaluation ---

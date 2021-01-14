@@ -1,4 +1,4 @@
-# B-HAR
+![B-HAR GA](tests/img/GA%20-%20B-HAR.jpg)
 ## Overview
 This repository hosts **B-HAR**, a baseline framework for in depth study of human activity recognition. 
 B-HAR gives to researchers the possibility to evaluate  and  compare  HAR  methodologies with a common well-defined workflow.
@@ -24,6 +24,26 @@ B-HAR requires `python3.6` or higher, you can easily install the package by usin
 pip install -i https://test.pypi.org/simple/ B-HAR-baseline-framework
 ```
 
+## Workflow
+<!-- 
+B-HAR takes in input  two files containing, respectively, 
+i) the  dataset,  i.e.,  values  of  the  signals  perceived  
+by  sensorsduring  human  activities,  enriched  by  information  concerning the  testing  subject  identity,  the  data
+collection  session,  and the  performed  activity  at  a  specific  timestamp,  and  
+ii)  aconfiguration file that defines the library workflow.
+
+The data cleaning phases is devoted to handle data errors:
+i) missing and inconsistent data, such  as  NaN,  or  Inf,
+ii) time series noise removal which is an essential and  indisputable  step  in  HAR  signal  processing.
+
+B-HAR provides to the user with the  possibility  of  selecting  one  of  the following  data treatment procedures:
+i) raw data which means that no data treatment is carried out,
+ii) segmentation, B-HAR creates time-window segment based on sampling frequency and desired window length, while 
+iii) the feature extraction process explores  the  time  and  frequency  domains  of  the  input  data
+
+-->
+
+![Workflow](tests/img/structure.png)
 ## Get started
 In order to start using B-HAR you have to follow these two steps:
 * Edit the configuration file

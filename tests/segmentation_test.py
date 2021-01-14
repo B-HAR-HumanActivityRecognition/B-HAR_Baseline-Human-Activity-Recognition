@@ -2,6 +2,7 @@ import unittest
 from b_har.baseline import B_HAR
 from b_har.utility.configurator import Configurator
 from datetime import datetime
+import warnings
 
 
 class SegmentationTestCase(unittest.TestCase):
@@ -19,7 +20,7 @@ class SegmentationTestCase(unittest.TestCase):
         Configurator(self.p).set('settings', 'sampling_frequency', '64')
         Configurator(self.p).set('settings', 'overlap', '0.5')
         Configurator(self.p).set('cleaning', 'low_cut', '20')
-        bhar.get_baseline(['LDA', 'QDA'], [])
+        bhar.get_baseline(['K-NN', 'LDA', 'QDA', 'RF', 'DT'], ['m1_acc'])
         self.assertEqual(True, True)
 
     def test_segmentation_hhar_phone(self):
@@ -112,4 +113,5 @@ class SegmentationTestCase(unittest.TestCase):
 
 
 if __name__ == '__main__':
+    warnings.filterwarnings('ignore')
     unittest.main()
