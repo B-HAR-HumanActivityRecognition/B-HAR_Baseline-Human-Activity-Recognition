@@ -114,8 +114,8 @@ class MlModels(object):
         'QDA': {
             'model': QuadraticDiscriminantAnalysis(),
             'param_grid': {
-                'store_covariance': ['False'],
-                # 'tol': [0.0001, 0.001, 0.01]
+                'store_covariance': ['True', 'False'],
+                'tol': [0.0001, 0.001, 0.01]
             }
         },
         'RF': {

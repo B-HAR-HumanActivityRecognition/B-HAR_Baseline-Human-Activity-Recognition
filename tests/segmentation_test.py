@@ -78,8 +78,7 @@ class SegmentationTestCase(unittest.TestCase):
         Configurator(self.p).set('settings', 'sampling_frequency', '100')
         Configurator(self.p).set('settings', 'overlap', '0')
         Configurator(self.p).set('cleaning', 'filter', 'no')
-        # bhar.get_baseline(['K-NN', 'LDA', 'QDA', 'RF', 'DT'], ['m1_acc'])
-        bhar.get_baseline(['QDA'], [], discard_class=['0'])
+        bhar.get_baseline(['K-NN', 'LDA', 'QDA', 'RF', 'DT'], ['m1_acc'])
         self.assertEqual(True, True)
 
     def test_segmentation_wisdm_v1(self):

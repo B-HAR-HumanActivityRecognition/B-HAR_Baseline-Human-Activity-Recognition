@@ -63,7 +63,7 @@ class FeaturesTestCase(unittest.TestCase):
         Configurator(self.p).set('settings', 'sampling_frequency', '50')
         Configurator(self.p).set('settings', 'overlap', '2.5')
         Configurator(self.p).set('cleaning', 'low_cut', '20')
-        bhar.get_baseline(['LDA', 'QDA'], [])
+        bhar.get_baseline(['K-NN', 'LDA', 'QDA', 'RF', 'DT'], ['m1_acc'])
         self.assertEqual(True, True)
 
     def test_features_papam(self):
@@ -72,13 +72,12 @@ class FeaturesTestCase(unittest.TestCase):
         print('%s -> %s' % ('papam', str(datetime.fromtimestamp(datetime.timestamp(datetime.now()))).split('.')[0]))
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'papam'))
         Configurator(self.p).set('settings', 'data_treatment', 'features_extraction')
-        Configurator(self.p).set('settings', 'resampling', 'under')
         Configurator(self.p).set('dataset', 'header_type', 'tdcp')
         Configurator(self.p).set('settings', 'time', '5')
         Configurator(self.p).set('settings', 'sampling_frequency', '100')
         Configurator(self.p).set('settings', 'overlap', '1')
         Configurator(self.p).set('cleaning', 'filter', 'no')
-        bhar.get_baseline(['QDA'], [])
+        bhar.get_baseline(['K-NN', 'LDA', 'QDA', 'RF', 'DT'], ['m1_acc'])
         self.assertEqual(True, True)
 
     def test_features_wisdm_v1(self):
@@ -107,7 +106,7 @@ class FeaturesTestCase(unittest.TestCase):
         Configurator(self.p).set('settings', 'sampling_frequency', '20')
         Configurator(self.p).set('settings', 'overlap', '0')
         Configurator(self.p).set('cleaning', 'filter', 'no')
-        bhar.get_baseline([], ['m1_acc'])
+        bhar.get_baseline(['K-NN', 'LDA', 'QDA', 'RF', 'DT'], ['m1_acc'])
         self.assertEqual(True, True)
 
     # -----------------------------
