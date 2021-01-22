@@ -23,9 +23,9 @@ B-HAR requires `python3.6` or higher, you can easily install the package by usin
 ```
 pip install -i https://test.pypi.org/simple/ B-HAR-baseline-framework
 ```
-
-## Workflow
 <!-- 
+## Workflow
+
 B-HAR takes in input  two files containing, respectively, 
 i) the  dataset,  i.e.,  values  of  the  signals  perceived  
 by  sensorsduring  human  activities,  enriched  by  information  concerning the  testing  subject  identity,  the  data
@@ -41,9 +41,9 @@ i) raw data which means that no data treatment is carried out,
 ii) segmentation, B-HAR creates time-window segment based on sampling frequency and desired window length, while 
 iii) the feature extraction process explores  the  time  and  frequency  domains  of  the  input  data
 
+![Workflow](tests/img/structure.png)
 -->
 
-![Workflow](tests/img/structure.png)
 ## Get started
 In order to start using B-HAR you have to follow these two steps:
 * Edit the configuration file
