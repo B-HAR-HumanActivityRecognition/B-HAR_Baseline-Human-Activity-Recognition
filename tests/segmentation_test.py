@@ -6,8 +6,8 @@ import warnings
 
 
 class SegmentationTestCase(unittest.TestCase):
-    p = '/Users/cristianturetta/PycharmProjects/har_baseline/config.cfg'
-    ds_path = '/Users/cristianturetta/HAR Datasets/B-HAR Compatible/'
+    p = '/home/ict/PycharmProjects/config.cfg'
+    ds_path = '/home/ict/B-HAR Compatible/'
 
     def test_segmentation_daphnet(self):
         Configurator(self.p).set('settings', 'log_dir', 'logs')
@@ -74,11 +74,12 @@ class SegmentationTestCase(unittest.TestCase):
         Configurator(self.p).set('dataset', 'path', '%s%s' % (self.ds_path, 'papam'))
         Configurator(self.p).set('settings', 'data_treatment', 'segmentation')
         Configurator(self.p).set('dataset', 'header_type', 'tdcp')
-        Configurator(self.p).set('settings', 'time', '5')
+        Configurator(self.p).set('settings', 'time', '2')
         Configurator(self.p).set('settings', 'sampling_frequency', '100')
-        Configurator(self.p).set('settings', 'overlap', '1')
+        Configurator(self.p).set('settings', 'overlap', '0')
         Configurator(self.p).set('cleaning', 'filter', 'no')
-        bhar.get_baseline(['K-NN', 'LDA', 'QDA', 'RF', 'DT'], ['m1_acc'])
+        # bhar.get_baseline(['K-NN', 'LDA', 'QDA', 'RF', 'DT'], ['m1_acc'])
+        bhar.get_baseline(['QDA'], [], discard_class=['0'])
         self.assertEqual(True, True)
 
     def test_segmentation_wisdm_v1(self):

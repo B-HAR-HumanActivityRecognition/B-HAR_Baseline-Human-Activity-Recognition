@@ -192,6 +192,8 @@ class B_HAR:
 
         # ----------------------
 
+        del dataset
+
         # --- Preprocessing ---
         try:
             X_train_set, X_validation_set, Y_train_set, Y_validation_set, class_labels = self._data_preprocessing(
@@ -209,6 +211,8 @@ class B_HAR:
             print(e.args)
             exit(50)
         # ---------------------
+
+        del dt_dataset
 
         # --- Start ML Evaluation ---
         if Configurator(self.__cfg_path).getboolean('settings', 'use_ml'):
@@ -475,15 +479,6 @@ class B_HAR:
             trained_models.update(
                 {fold: (model.get_weights(), y_test, pred, None, scores[0])})  # None instead of y_unseen_pred
 
-            logging.info("\nTraining Fold %s info:\n•Gait has %s instances\n•FoG has %s instances" %
-                         (str(fold), str(len(np.where(y_train.argmax(1) == 0)[0])),
-                          str(len(np.where(y_train.argmax(1) == 1)[0])))
-                         )
-            logging.info("\nTesting Fold %s info: \n•Gait has %s instances\n•FoG has %s instances" %
-                         (str(fold), str(len(np.where(y_test.argmax(1) == 0)[0])),
-                          str(len(np.where(y_test.argmax(1) == 1)[0])))
-                         )
-
             logging.info(
                 'Classification Report on Test Fold\n%s' % str(classification_report(y_test.argmax(1), pred.argmax(1))))
 
@@ -500,11 +495,6 @@ class B_HAR:
             model.set_weights(initial_weights)
 
         # Print a final summary
-        logging.info('------------------------------------------------------------------------')
-        logging.info('Dataset Information:\n•Gait instances are %s\n•FoG instances are %s' %
-                     (str(len(np.where(y == 0)[0])), str(len(np.where(y == 1)[0])))
-                     )
-        logging.info('------------------------------------------------------------------------')
         logging.info('------------------------------------------------------------------------')
         logging.info('Score per fold')
         for i in range(0, len(accuracy_per_fold)):

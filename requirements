@@ -2,6 +2,9 @@ sensormotion==1.1.4
 pandas
 pathlib==1.0.1
 tensorflow==2.3.1
-tensorflow-estimator==2.3.0
 tensorboard==2.3.0
 progressbar2
+sklearn
+seaborn
+tsfel
+imblearn
