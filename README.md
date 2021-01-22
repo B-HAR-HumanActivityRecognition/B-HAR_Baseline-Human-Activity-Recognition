@@ -23,9 +23,9 @@ B-HAR requires `python3.6` or higher, you can easily install the package by usin
 ```
 pip install -i https://test.pypi.org/simple/ B-HAR-baseline-framework
 ```
-
-## Workflow
 <!-- 
+## Workflow
+
 B-HAR takes in input  two files containing, respectively, 
 i) the  dataset,  i.e.,  values  of  the  signals  perceived  
 by  sensorsduring  human  activities,  enriched  by  information  concerning the  testing  subject  identity,  the  data
