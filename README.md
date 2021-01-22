@@ -41,9 +41,9 @@ i) raw data which means that no data treatment is carried out,
 ii) segmentation, B-HAR creates time-window segment based on sampling frequency and desired window length, while 
 iii) the feature extraction process explores  the  time  and  frequency  domains  of  the  input  data
 
+![Workflow](tests/img/structure.png)
 -->
 
-![Workflow](tests/img/structure.png)
 ## Get started
 In order to start using B-HAR you have to follow these two steps:
 * Edit the configuration file
