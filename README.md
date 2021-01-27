@@ -65,3 +65,20 @@ You can find a full example and how to use and set the configuration file in the
 Once started, B-HAR will create a log directory in which all analysis outputs will be saved. B-HAR will report training 
 stats for both machine learning and deep learning, a sep-by-step recap will be reported in `log.rft` together with a backup
 of the configuration file used.
+
+## Citing
+When using B-HAR please cite the following publication:
+
+Florenc Demrozi, Cristian Turetta and Graziano Pravadelli. "*B-HAR: an open-source baseline framework for in depth study of human activity recognition datasets and workflows*". [https://arxiv.org/abs/2101.10870](https://arxiv.org/abs/2101.10870)
+
+Or use:
+```
+@misc{demrozi2021bhar,
+      title={B-HAR: an open-source baseline framework for in depth study of human activity recognition datasets and workflows}, 
+      author={Florenc Demrozi and Cristian Turetta and Graziano Pravadelli},
+      year={2021},
+      eprint={2101.10870},
+      archivePrefix={arXiv},
+      primaryClass={eess.SP}
+}
+```
