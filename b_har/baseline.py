@@ -32,10 +32,39 @@ from timeit import default_timer as timer
 
 class B_HAR:
     _data_delimiters = {
-        'tdc': (1, -1),
-        'tdcp': (1, -2),
+        # if the data are in the last columns, we need to know only the start index
         'dc': (0, -1),
-        'dcp': (0, -2)
+        'cd': (1),
+        'tdc': (1, -1),
+        'tcd': (2),
+        'cdt': (1, -1),
+        'dct': (0, -2),
+        'ctd': (2),
+        'dtc': (0, -2),
+        'tpcd': (3),
+        'tpdc': (2, -1),
+        'tcpd': (3),
+        'tcdp': (2, -1),
+        'tdcp': (1, -2),
+        'tdpc': (1, -2),
+        'ptcd': (3),
+        'ptdc': (2, -1),
+        'pdtc': (1, -2),
+        'pdct': (1, -2),
+        'pctd': (3),
+        'pcdt': (2, -1),
+        'ctdp': (2, -1),
+        'ctpd': (3),
+        'cdtp': (1, -2),
+        'cdpt': (1, -2),
+        'cptd': (3),
+        'cpdt': (2, -1),
+        'dtcp': (0, -3),
+        'dtpc': (0, -3),
+        'dctp': (0, -3),
+        'dcpt': (0, -3),
+        'dptc': (0, -3),
+        'dpct': (0, -3)
     }
 
     # --- Public Methods ---
@@ -235,18 +264,29 @@ class B_HAR:
 
     def _apply_segmentation(self, df, sampling_frequency, time_window_size, overlap):
         has_patient = 'p' in Configurator(self.__cfg_path).get('dataset', 'header_type')
+        x_df = []
+        widgets = [
+            'Segmentation',
+            ' [', progressbar.Timer(), '] ',
+            progressbar.Bar(),
+            ' (', progressbar.ETA(), ') ',
+        ]
 
-        if has_patient:
-            x, y, p = self._get_window(df, sampling_frequency, time_window_size, overlap)
-        else:
-            x, y = self._get_window(df, sampling_frequency, time_window_size, overlap)
-            p = None
+        with progressbar.ProgressBar(widgets=widgets, max_value=len(df)) as bar:
+            for d in np.arange(0,len(df)):
+                if has_patient:
+                    x, y, p = self._get_window(df[d], sampling_frequency, time_window_size, overlap)
+                else:
+                    x, y = self._get_window(df[d], sampling_frequency, time_window_size, overlap)
+                    p = None
 
-        x_df = pd.DataFrame(x.reshape(-1, x.shape[1] * x.shape[2]))
-        x_df['CLASS'] = y
+                x_df.append(pd.DataFrame(x.reshape(-1, x.shape[1] * x.shape[2])))
+                x_df[d]['CLASS'] = y
 
-        if has_patient and p is not None:
-            x_df['P_ID'] = p
+                if has_patient and p is not None:
+                    x_df[d]['P_ID'] = p
+                bar.update()
+
         return x_df
 
     def _dl_evaluation(self, x_train, y_train, x_val, y_val, dl_models, time_window_size):
@@ -870,34 +910,30 @@ class B_HAR:
         return features_dataset
 
     def _derive_headers(self, columns, header_type: str = None):
-        # 4 different kind of header
-        # time data class          -> tdc
-        # time data class patient  -> tdcp
-        # data class               -> dc
-        # data class patient       -> dcp
 
-        n = columns + self._data_delimiters[header_type][1] - self._data_delimiters[header_type][0]
-
-        if header_type == 'tdc' or header_type == 'tdcp':
-            header = ['time']
+        # if the data are in the last columns, we need to calculate n in a different way
+        if header_type[len(header_type)-1] == "d":
+            n = columns - self._data_delimiters[header_type]
         else:
-            header = []
+            n = columns + self._data_delimiters[header_type][1] - self._data_delimiters[header_type][0]
+        header = []
 
-        axis = ['x', 'y', 'z']
-        column_signature = 'A'
-        accelerometer_name = 0
+        for i in header_type:
+            if i == 't':
+                header.append('time')
+            if i == 'c':
+                header.append('CLASS')
+            if i == 'p':
+                header.append('P_ID')
+            if i == 'd':
+                axis = ['x', 'y', 'z']
+                column_signature = 'A'
+                accelerometer_name = 0
 
-        for column_index, ax in zip(range(n), cycle(axis)):
-            if (column_index % 3) == 0:
-                accelerometer_name += 1
-            header.append('%s%s%s' % (column_signature, str(accelerometer_name), ax))
-
-        # Add class column
-        header.append('CLASS')
-
-        # Add other columns depending on cases
-        if header_type == 'tdcp' or header_type == 'dcp':
-            header.append('P_ID')
+                for column_index, ax in zip(range(n), cycle(axis)):
+                    if (column_index % 3) == 0:
+                        accelerometer_name += 1
+                    header.append('%s%s%s' % (column_signature, str(accelerometer_name), ax))
 
         return header
 
@@ -928,10 +964,26 @@ class B_HAR:
                         df_i.columns = header
                         frames.append(df_i)
                 bar.update()
+        df = pd.concat(frames, ignore_index=True)
 
-        return pd.concat(frames, ignore_index=True)
+        array_df = []
+
+        # if there are more than 1 class, I need to create an array containing a subdataset for each class for each patient,
+        # otherwise I just need to group the data by the P_ID
+        if df['CLASS'].nunique() != 1:
+            multiclass = True
+            idx = np.where(np.roll(df['CLASS'], 1) != df['CLASS'])[0]
+            for st,en in zip(idx , idx[1:]):
+                array_df.append(df[st:en])
+        else:
+            multiclass = False
+            array_df = df.groupby(['P_ID', 'CLASS'])
+
+        return array_df
 
     def _clean_data(self, df, sampling_frequency, high_cutoff, low_cutoff, sub_method, header_type):
+
+
         widgets = [
             'Cleaning Data',
             ' [', progressbar.Timer(), '] ',
@@ -940,97 +992,107 @@ class B_HAR:
         ]
 
         logging.info('--- Cleaning data ---')
+        df_filtered = []
         with progressbar.ProgressBar(widgets=widgets, max_value=2) as bar:
-            # Handle Data Errors: clean from NaN and infinite values
-            df.replace([math.inf, -math.inf], np.nan, inplace=True)
-            if sub_method == 'mean':
-                df.fillna(df.mean(), inplace=True)
-            elif sub_method == 'forward':
-                df.fillna(method='ffill', inplace=True)
-            elif sub_method == 'backward':
-                df.fillna(method='bfill', inplace=True)
-            elif sub_method == 'constant':
-                df = df.fillna(Configurator(self.__cfg_path).getfloat('cleaning', 'constant_value'))
-            else:
-                logging.info('*** Error: %s is not a valid substitution method, skipped ***' % sub_method)
 
-            df_filtered = df.reset_index(drop=True)
-            bar.update()
+            for d in df:
 
-            # Apply filter
-            filter_name = Configurator(self.__cfg_path).get('cleaning', 'filter')
-            filter_order = Configurator(self.__cfg_path).getint('cleaning', 'filter_order')
+                # Handle Data Errors: clean from NaN and infinite values
+                d.replace([math.inf, -math.inf], np.nan, inplace=True)
+                if sub_method == 'mean':
+                    d.fillna(d.mean(), inplace=True)
+                elif sub_method == 'forward':
+                    d.fillna(method='ffill', inplace=True)
+                elif sub_method == 'backward':
+                    d.fillna(method='bfill', inplace=True)
+                elif sub_method == 'constant':
+                    d = d.fillna(Configurator(self.__cfg_path).getfloat('cleaning', 'constant_value'))
+                else:
+                    logging.info('*** Error: %s is not a valid substitution method, skipped ***' % sub_method)
 
-            if 'low' in filter_name:
-                cutoff = low_cutoff
-            elif 'high' in filter_name:
-                cutoff = high_cutoff
-            elif filter_name == 'bandpass':
-                cutoff = (high_cutoff, low_cutoff)
-            elif filter_name == 'no':
-                cutoff = None
-            else:
-                cutoff = None
-                logging.info('*** Error: invalid filter name %s ***' % filter_name)
-                print('*** Error: invalid filter name %s ***' % filter_name)
-                exit(11)
+                df_filtered.append(d.reset_index(drop=True))
+                bar.update()
 
+        # Apply filter
+        filter_name = Configurator(self.__cfg_path).get('cleaning', 'filter')
+        filter_order = Configurator(self.__cfg_path).getint('cleaning', 'filter_order')
+
+        if 'low' in filter_name:
+            cutoff = low_cutoff
+        elif 'high' in filter_name:
+            cutoff = high_cutoff
+        elif filter_name == 'bandpass':
+            cutoff = (high_cutoff, low_cutoff)
+        elif filter_name == 'no':
+            cutoff = None
+        else:
+            cutoff = None
+            logging.info('*** Error: invalid filter name %s ***' % filter_name)
+            print('*** Error: invalid filter name %s ***' % filter_name)
+            exit(11)
+
+        for d in np.arange(0,len(df)):
             if cutoff is not None:
-                df_filtered = pd.DataFrame(
+                df_filtered[d] = pd.DataFrame(
                     self._apply_filter(
-                        df=df_filtered,
+                        df=df_filtered[d],
                         filter_name=filter_name,
                         sample_rate=sampling_frequency,
                         frequency_cutoff=cutoff,
                         order=filter_order
                     ),
-                    columns=list(df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]])
+                    columns=list(df[d].columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]])
                 )
 
                 # Add class and other to the filtered dataset
-                df_filtered['CLASS'] = df['CLASS']
+                df_filtered[d]['CLASS'] = df[d]['CLASS']
                 if 'p' in header_type:
-                    df_filtered['P_ID'] = df['P_ID']
+                    df_filtered[d]['P_ID'] = df[d]['P_ID']
                 if 't' in header_type:
-                    df_filtered.insert(0, 'time', df['time'])
-            bar.update()
+                    df_filtered[d].insert(0, 'time', df[d]['time'])
+        bar.update()
 
         return df_filtered
 
     def _features_extraction(self, df, sampling_frequency, time_window, overlap, header_type):
-        x = df.drop(['CLASS'], axis=1)
-        if 'p' in header_type:
-            x = x.drop(['P_ID'], axis=1)
-        if 't' in header_type:
-            x = x.drop(['time'], axis=1)
 
-        y = df['CLASS']
+        features_df = []
+        for d in df:
+            x = d.drop(['CLASS'], axis=1)
+            if 'p' in header_type:
+                x = x.drop(['P_ID'], axis=1)
+            if 't' in header_type:
+                x = x.drop(['time'], axis=1)
 
-        # Available domains: "statistical"; "spectral"; "temporal"
-        domain = Configurator(self.__cfg_path).get('settings', 'features_domain')
-        if domain == 'all':
-            cfg = ts.get_features_by_domain()
-        else:
-            cfg = ts.get_features_by_domain(domain)
+            y = d['CLASS']
 
-        tsfel_overlap = round(overlap/Configurator(self.__cfg_path).getfloat('settings', 'time'), 3)
-        # Features Extraction
-        X_features = ts.time_series_features_extractor(cfg,
-                                                       x,
-                                                       fs=sampling_frequency,
-                                                       window_size=time_window,
-                                                       overlap=tsfel_overlap,
-                                                       verbose=1)
-        Y_features = self._labels_windowing(y, sampling_frequency, time_window, overlap)
+            # Available domains: "statistical"; "spectral"; "temporal"
+            domain = Configurator(self.__cfg_path).get('settings', 'features_domain')
+            if domain == 'all':
+                cfg = ts.get_features_by_domain()
+            else:
+                cfg = ts.get_features_by_domain(domain)
 
-        # Handling eventual missing values from the feature extraction
-        X_features = self._fill_missing_values(X_features)
+            tsfel_overlap = round(overlap/Configurator(self.__cfg_path).getfloat('settings', 'time'), 3)
+            # Features Extraction
+            X_features = ts.time_series_features_extractor(cfg,
+                                                           x,
+                                                           fs=sampling_frequency,
+                                                           window_size=time_window,
+                                                           overlap=tsfel_overlap,
+                                                           verbose=1)
+            Y_features = self._labels_windowing(y, sampling_frequency, time_window, overlap)
 
-        logging.info('--> Features extracted: %s' % str(X_features.shape[1]))
+            # Handling eventual missing values from the feature extraction
+            X_features = self._fill_missing_values(X_features)
 
-        # Attach labels
-        features_df = pd.DataFrame(X_features)
-        features_df['CLASS'] = Y_features
+            logging.info('--> Features extracted: %s' % str(X_features.shape[1]))
+
+            # Attach labels
+            features_df.append(pd.DataFrame(X_features))
+            features_df['CLASS'] = Y_features
+
+        print ("STOP")
 
         return features_df
 
@@ -1163,12 +1225,6 @@ class B_HAR:
 
     def _get_window(self, df: pd.DataFrame, sampling_frequency: int, window_size: int, overlap: float):
         hop_size = window_size - int(sampling_frequency * overlap)
-        widgets = [
-            'Segmentation',
-            ' [', progressbar.Timer(), '] ',
-            progressbar.Bar(),
-            ' (', progressbar.ETA(), ') ',
-        ]
 
         data = list()
         labels = list()
@@ -1176,22 +1232,20 @@ class B_HAR:
         has_patient = 'p' in Configurator(self.__cfg_path).get('dataset', 'header_type')
 
         columns = df.columns[self._data_delimiters['tdcp'][0]: self._data_delimiters['tdcp'][1]]
-        with progressbar.ProgressBar(widgets=widgets, max_value=len(df) - window_size + 1) as bar:
-            for i in range(0, len(df) - window_size + 1, hop_size):
-                window = list()
-                for column in columns:
-                    x_i = df[column].values[i: i + window_size]
-                    window.append(x_i)
+        for i in range(0, len(df) - window_size + 1, hop_size):
+            window = list()
+            for column in columns:
+                x_i = df[column].values[i: i + window_size]
+                window.append(x_i)
 
-                # Associate a label for the current window based on mode
-                label = stats.mode(df['CLASS'].values[i: i + window_size])[0][0]
+            # Associate a label for the current window based on mode
+            label = stats.mode(df['CLASS'].values[i: i + window_size])[0][0]
 
-                data.append(np.array(window).T)
-                labels.append(label)
+            data.append(np.array(window).T)
+            labels.append(label)
 
-                if has_patient:
-                    patients.append(stats.mode(df['P_ID'].values[i: i + window_size])[0][0])
-                bar.update()
+            if has_patient:
+                patients.append(stats.mode(df['P_ID'].values[i: i + window_size])[0][0])
 
         if has_patient:
             return np.asarray(data), np.asarray(labels), np.asarray(patients)
