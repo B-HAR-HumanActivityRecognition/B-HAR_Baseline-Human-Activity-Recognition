@@ -28,6 +28,7 @@ from b_har.models import Models, MlModels
 import logging
 import progressbar
 from timeit import default_timer as timer
+import itertools
 
 
 class B_HAR:
@@ -81,6 +82,7 @@ class B_HAR:
         self._init_log()
         df = self._decode_csv(ds_dir=Configurator(self.__cfg_path).get('dataset', 'path'),
                               separator=Configurator(self.__cfg_path).get('dataset', 'separator', fallback=' '),
+                              end_line=Configurator(self.__cfg_path).get('dataset', 'end_line', fallback=' '),
                               header_type=Configurator(self.__cfg_path).get('dataset', 'header_type'),
                               has_header=Configurator(self.__cfg_path).getboolean('dataset', 'has_header')
                               )
@@ -162,6 +164,7 @@ class B_HAR:
         try:
             dataset = self._decode_csv(ds_dir=Configurator(self.__cfg_path).get('dataset', 'path'),
                                        separator=Configurator(self.__cfg_path).get('dataset', 'separator', fallback=' '),
+                                       end_line=Configurator(self.__cfg_path).get('dataset', 'end_line', fallback=' '),
                                        header_type=Configurator(self.__cfg_path).get('dataset', 'header_type'),
                                        has_header=Configurator(self.__cfg_path).getboolean('dataset', 'has_header')
                                        )
@@ -217,7 +220,7 @@ class B_HAR:
         else:
             print('*** Fallback: not recognised %s, using Raw instead ***' % data_treatment_type)
             logging.info('*** Fallback: not recognised %s, using Raw instead ***' % data_treatment_type)
-            dt_dataset = dataset
+            dt_dataset = pd.DataFrame(np.concatenate(dataset), columns=dataset[0].columns)
 
         # ----------------------
 
@@ -273,6 +276,7 @@ class B_HAR:
         ]
 
         with progressbar.ProgressBar(widgets=widgets, max_value=len(df)) as bar:
+            #TODO: provare a usare altro metodo di numpy
             for d in np.arange(0,len(df)):
                 if has_patient:
                     x, y, p = self._get_window(df[d], sampling_frequency, time_window_size, overlap)
@@ -937,7 +941,7 @@ class B_HAR:
 
         return header
 
-    def _decode_csv(self, ds_dir: str, header_type, separator: str = ' ', has_header: bool = False):
+    def _decode_csv(self, ds_dir: str, header_type, separator: str = ' ', end_line: str = ' ', has_header: bool = False):
         frames = list()
         is_first = True
         header = None
@@ -954,13 +958,13 @@ class B_HAR:
                     # Derive header if not exists
                     if is_first and not has_header:
                         is_first = False
-                        header = self._derive_headers(pd.read_csv(os.path.join(ds_dir, file), sep=separator).shape[1], header_type)
+                        header = self._derive_headers(pd.read_csv(os.path.join(ds_dir, file), sep=separator, lineterminator=end_line).shape[1], header_type)
 
                     # Append dataframes
                     if has_header:
-                        frames.append(pd.read_csv(os.path.join(ds_dir, file), sep=separator))
+                        frames.append(pd.read_csv(os.path.join(ds_dir, file), sep=separator, lineterminator=end_line))
                     else:
-                        df_i = pd.read_csv(os.path.join(ds_dir, file), sep=separator, header=None)
+                        df_i = pd.read_csv(os.path.join(ds_dir, file), sep=separator, lineterminator=end_line, header=None)
                         df_i.columns = header
                         frames.append(df_i)
                 bar.update()
@@ -999,6 +1003,7 @@ class B_HAR:
 
                 # Handle Data Errors: clean from NaN and infinite values
                 d.replace([math.inf, -math.inf], np.nan, inplace=True)
+                #TODO: fare media su tutti i dati (per paziente), non solo sui singoli sotto-dataframe
                 if sub_method == 'mean':
                     d.fillna(d.mean(), inplace=True)
                 elif sub_method == 'forward':
@@ -1045,6 +1050,7 @@ class B_HAR:
                 )
 
                 # Add class and other to the filtered dataset
+                # TODO: Aggiungere la normalizzazione dei dati (0 mean),  bisogna lavorare su TUTTI i dati (?)
                 df_filtered[d]['CLASS'] = df[d]['CLASS']
                 if 'p' in header_type:
                     df_filtered[d]['P_ID'] = df[d]['P_ID']
@@ -1091,8 +1097,6 @@ class B_HAR:
             # Attach labels
             features_df.append(pd.DataFrame(X_features))
             features_df['CLASS'] = Y_features
-
-        print ("STOP")
 
         return features_df
 
@@ -1229,9 +1233,14 @@ class B_HAR:
         data = list()
         labels = list()
         patients = list()
-        has_patient = 'p' in Configurator(self.__cfg_path).get('dataset', 'header_type')
+        header_type = Configurator(self.__cfg_path).get('dataset', 'header_type')
+        has_patient = 'p' in header_type
 
-        columns = df.columns[self._data_delimiters['tdcp'][0]: self._data_delimiters['tdcp'][1]]
+        if header_type.rfind('d')==len(header_type)-1 :
+            columns = df.columns[self._data_delimiters[header_type]: len(df.columns)]
+        else:
+            columns = df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]]
+
         for i in range(0, len(df) - window_size + 1, hop_size):
             window = list()
             for column in columns:
