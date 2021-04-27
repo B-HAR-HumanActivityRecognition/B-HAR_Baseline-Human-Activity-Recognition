@@ -6,8 +6,8 @@ from datetime import datetime
 
 class MyTestCase(unittest.TestCase):
     def test_something(self):
-        #cfg_file = '/home/furla/b_har/datasets/benchmark/config_example.cfg'
-        cfg_file = '/home/furla/b_har/datasets/wisdm-dataset/raw/watch/accel/config_example.cfg'
+        cfg_file = '/home/furla/b_har/datasets/benchmark/wisdm/multiclass/config_example.cfg'
+        #cfg_file = '/home/furla/b_har/datasets/wisdm-dataset/raw/watch/accel/config_example.cfg'
 
         b_har = B_HAR(config_file_path=cfg_file)
 
