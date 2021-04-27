@@ -68,6 +68,8 @@ class B_HAR:
         'dpct': (0, -3)
     }
 
+    _multiclass = False
+
     # --- Public Methods ---
 
     def __init__(self, config_file_path) -> None:
@@ -220,10 +222,10 @@ class B_HAR:
         else:
             print('*** Fallback: not recognised %s, using Raw instead ***' % data_treatment_type)
             logging.info('*** Fallback: not recognised %s, using Raw instead ***' % data_treatment_type)
-            dt_dataset = pd.DataFrame(np.concatenate(dataset), columns=dataset[0].columns)
 
         # ----------------------
 
+        dt_dataset = pd.DataFrame(np.concatenate(dataset), columns=dataset[0].columns)
         del dataset
 
         # --- Preprocessing ---
@@ -277,18 +279,20 @@ class B_HAR:
 
         with progressbar.ProgressBar(widgets=widgets, max_value=len(df)) as bar:
             #TODO: provare a usare altro metodo di numpy
-            for d in np.arange(0,len(df)):
+            for d in df:
                 if has_patient:
-                    x, y, p = self._get_window(df[d], sampling_frequency, time_window_size, overlap)
+                    x, y, p = self._get_window(d, sampling_frequency, time_window_size, overlap)
                 else:
-                    x, y = self._get_window(df[d], sampling_frequency, time_window_size, overlap)
+                    x, y = self._get_window(d, sampling_frequency, time_window_size, overlap)
                     p = None
 
-                x_df.append(pd.DataFrame(x.reshape(-1, x.shape[1] * x.shape[2])))
-                x_df[d]['CLASS'] = y
+                dat = pd.DataFrame(x.reshape(-1, x.shape[1] * x.shape[2]))
+                dat['CLASS'] = y
 
                 if has_patient and p is not None:
-                    x_df[d]['P_ID'] = p
+                    dat['P_ID'] = p
+
+                x_df.append(dat)
                 bar.update()
 
         return x_df
@@ -958,30 +962,53 @@ class B_HAR:
                     # Derive header if not exists
                     if is_first and not has_header:
                         is_first = False
-                        header = self._derive_headers(pd.read_csv(os.path.join(ds_dir, file), sep=separator, lineterminator=end_line).shape[1], header_type)
+                        header = self._derive_headers(pd.read_csv(os.path.join(ds_dir, file), sep=separator).shape[1], header_type)
 
                     # Append dataframes
                     if has_header:
-                        frames.append(pd.read_csv(os.path.join(ds_dir, file), sep=separator, lineterminator=end_line))
+                        frames.append(pd.read_csv(os.path.join(ds_dir, file), sep=separator))
                     else:
-                        df_i = pd.read_csv(os.path.join(ds_dir, file), sep=separator, lineterminator=end_line, header=None)
+                        df_i = pd.read_csv(os.path.join(ds_dir, file), sep=separator, header=None)
                         df_i.columns = header
                         frames.append(df_i)
                 bar.update()
         df = pd.concat(frames, ignore_index=True)
 
-        array_df = []
+        # handle the line end separator of the csv file to avoid multitypes columns. Using header_type we know the type of the last column
+        # so after removing the line end separator we can convert it in the right type. If the end line was the default value ' ', we don't
+        # need to handle the column type.
 
+        if end_line != ' ':
+
+            df[header[-1]] = df[header[-1]].map(lambda x: x.rstrip(end_line))
+            ht = header_type[len(header_type)-1]
+            if ht == 't':
+                df['time'] = df['time'].astype('int64')
+            elif ht == 'c':
+                df['CLASS'] = df['CLASS'].astype('object')
+            elif ht == 'p':
+                df['P_ID'] = df['P_ID'].astype('int64')
+            elif ht == 'd':
+                df[header[-1]] = df[header[-1]].astype('float64')
+
+
+        array_df = []
+        df = df.sort_values(['P_ID','CLASS', 'time'], ignore_index= True)
         # if there are more than 1 class, I need to create an array containing a subdataset for each class for each patient,
         # otherwise I just need to group the data by the P_ID
+
         if df['CLASS'].nunique() != 1:
-            multiclass = True
+            self._multiclass = True
             idx = np.where(np.roll(df['CLASS'], 1) != df['CLASS'])[0]
-            for st,en in zip(idx , idx[1:]):
+            idx = np.append(idx, len(df))
+            for st, en in zip(idx, idx[1:]):
                 array_df.append(df[st:en])
         else:
-            multiclass = False
-            array_df = df.groupby(['P_ID', 'CLASS'])
+            self._multiclass = False
+            idx = np.where(np.roll(df['P_ID'], 1) != df['P_ID'])[0]
+            idx = np.append(idx, len(df))
+            for st, en in zip(idx, idx[1:]):
+                array_df.append(df[st:en])
 
         return array_df
 
@@ -999,24 +1026,43 @@ class B_HAR:
         df_filtered = []
         with progressbar.ProgressBar(widgets=widgets, max_value=2) as bar:
 
-            for d in df:
-
-                # Handle Data Errors: clean from NaN and infinite values
-                d.replace([math.inf, -math.inf], np.nan, inplace=True)
-                #TODO: fare media su tutti i dati (per paziente), non solo sui singoli sotto-dataframe
-                if sub_method == 'mean':
-                    d.fillna(d.mean(), inplace=True)
-                elif sub_method == 'forward':
-                    d.fillna(method='ffill', inplace=True)
-                elif sub_method == 'backward':
-                    d.fillna(method='bfill', inplace=True)
-                elif sub_method == 'constant':
-                    d = d.fillna(Configurator(self.__cfg_path).getfloat('cleaning', 'constant_value'))
+            if sub_method == 'mean':
+                # we need to regroup the dataset based on the P_ID, calculate the mean on all the data for each subgroup,
+                # and then separate again the dataset
+                df_group = pd.DataFrame(np.concatenate(df), columns=df[0].columns)
+                for p in df_group['P_ID'].unique():
+                    # Handle Data Errors: clean from NaN and infinite values
+                    df_group[df_group['P_ID'] == p] = df_group[df_group['P_ID'] == p].replace([math.inf, -math.inf], np.nan)
+                    df_group[df_group['P_ID'] == p] = df_group[df_group['P_ID'] == p].fillna(df_group[df_group['P_ID'] == p].mean())
+                    bar.update()
+                if self._multiclass:
+                    idx = np.where(np.roll(df_group['CLASS'], 1) != df_group['CLASS'])[0]
+                    idx = np.append(idx, len(df_group))
+                    for st, en in zip(idx, idx[1:]):
+                        df_filtered.append(df_group[st:en])
                 else:
-                    logging.info('*** Error: %s is not a valid substitution method, skipped ***' % sub_method)
+                    idx = np.where(np.roll(df_group['P_ID'], 1) != df_group['P_ID'])[0]
+                    idx = np.append(idx, len(df_group))
+                    for st, en in zip(idx, idx[1:]):
+                        df_filtered.append(df_group[st:en], )
 
-                df_filtered.append(d.reset_index(drop=True))
-                bar.update()
+
+            else:
+                for d in df:
+                    # Handle Data Errors: clean from NaN and infinite values
+                    d.replace([math.inf, -math.inf], np.nan, inplace=True)
+
+                    if sub_method == 'forward':
+                        d.fillna(method='ffill', inplace=True)
+                    elif sub_method == 'backward':
+                        d.fillna(method='bfill', inplace=True)
+                    elif sub_method == 'constant':
+                        d = d.fillna(Configurator(self.__cfg_path).getfloat('cleaning', 'constant_value'))
+                    else:
+                        logging.info('*** Error: %s is not a valid substitution method, skipped ***' % sub_method)
+
+                    df_filtered.append(d.reset_index(drop=True))
+                    bar.update()
 
         # Apply filter
         filter_name = Configurator(self.__cfg_path).get('cleaning', 'filter')
@@ -1240,6 +1286,9 @@ class B_HAR:
             columns = df.columns[self._data_delimiters[header_type]: len(df.columns)]
         else:
             columns = df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]]
+
+        if has_patient:
+            df.astype({'P_ID':'int64'})
 
         for i in range(0, len(df) - window_size + 1, hop_size):
             window = list()
