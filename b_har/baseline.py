@@ -28,46 +28,11 @@ from b_har.models import Models, MlModels
 import logging
 import progressbar
 from timeit import default_timer as timer
+import natsort as ns
 import itertools
 
-
 class B_HAR:
-    _data_delimiters = {
-        # if the data are in the last columns, we need to know only the start index
-        'dc': (0, -1),
-        'cd': (1),
-        'tdc': (1, -1),
-        'tcd': (2),
-        'cdt': (1, -1),
-        'dct': (0, -2),
-        'ctd': (2),
-        'dtc': (0, -2),
-        'tpcd': (3),
-        'tpdc': (2, -1),
-        'tcpd': (3),
-        'tcdp': (2, -1),
-        'tdcp': (1, -2),
-        'tdpc': (1, -2),
-        'ptcd': (3),
-        'ptdc': (2, -1),
-        'pdtc': (1, -2),
-        'pdct': (1, -2),
-        'pctd': (3),
-        'pcdt': (2, -1),
-        'ctdp': (2, -1),
-        'ctpd': (3),
-        'cdtp': (1, -2),
-        'cdpt': (1, -2),
-        'cptd': (3),
-        'cpdt': (2, -1),
-        'dtcp': (0, -3),
-        'dtpc': (0, -3),
-        'dctp': (0, -3),
-        'dcpt': (0, -3),
-        'dptc': (0, -3),
-        'dpct': (0, -3)
-    }
-
+    _data_delimiters = (0, 0)
     _multiclass = False
 
     # --- Public Methods ---
@@ -82,15 +47,30 @@ class B_HAR:
         :return: None
         """
         self._init_log()
-        df = self._decode_csv(ds_dir=Configurator(self.__cfg_path).get('dataset', 'path'),
+
+        #Getting the data delimiters
+        header_type = Configurator(self.__cfg_path).get('dataset', 'header_type')
+        group_by = Configurator(self.__cfg_path).get('settings', 'group_by')
+        has_section = Configurator(self.__cfg_path).get('dataset', 'has_section')
+
+        idx_s = header_type.find('d')
+        # if the data are in the last columns, we need to calculate n in a different way
+        if header_type[len(header_type) - 1] == 'd':
+            self._data_delimiters = (0, idx_s)
+        else:
+            idx_e = (len(header_type) - 1) - idx_s
+            self._data_delimiters = (idx_s, -idx_e)
+
+
+        dataset = self._decode_csv(ds_dir=Configurator(self.__cfg_path).get('dataset', 'path'),
                               separator=Configurator(self.__cfg_path).get('dataset', 'separator', fallback=' '),
                               end_line=Configurator(self.__cfg_path).get('dataset', 'end_line', fallback=' '),
                               header_type=Configurator(self.__cfg_path).get('dataset', 'header_type'),
                               has_header=Configurator(self.__cfg_path).getboolean('dataset', 'has_header')
                               )
 
-        header_type = Configurator(self.__cfg_path).get('dataset', 'header_type')
-        group_by = Configurator(self.__cfg_path).get('settings', 'group_by')
+        df = pd.DataFrame(np.concatenate(dataset), columns=dataset[0].columns)
+        del dataset
 
         # Create stats directory
         stats_dir = os.path.join(Configurator(self.__cfg_path).get('settings', 'log_dir'), 'stats')
@@ -130,16 +110,21 @@ class B_HAR:
             plt.close()
 
         # Boxplot Data
-        df.boxplot(
-            column=list(df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]]))
+        if header_type[len(header_type) - 1] == 'd':
+            df.boxplot(
+                column=list(df.columns[self._data_delimiters[1]: df.shape[1]-1]))
+        else:
+            df.boxplot(column=list(df.columns[self._data_delimiters[0]: self._data_delimiters[1]]))
         plt.savefig(os.path.join(Configurator(self.__cfg_path).get('settings', 'log_dir'), 'stats/data_boxplot.png'))
         plt.show()
         plt.close()
 
         # Boxplot Class
-        df.boxplot(
-            column=list(df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]]),
-            by='CLASS')
+        if header_type[len(header_type) - 1] == 'd':
+            df.boxplot(column=list(df.columns[self._data_delimiters[1]: df.shape[1]-1]), by='CLASS')
+        else:
+            df.boxplot(
+                column=list(df.columns[self._data_delimiters[0]: self._data_delimiters[1]]), by='CLASS')
         plt.savefig(os.path.join(Configurator(self.__cfg_path).get('settings', 'log_dir'), 'stats/class_boxplot.png'))
         plt.show()
         plt.close()
@@ -161,6 +146,17 @@ class B_HAR:
         # Evaluate number of sample per time window
         time_window_size = int(Configurator(self.__cfg_path).getint('settings', 'sampling_frequency') *
                                Configurator(self.__cfg_path).getfloat('settings', 'time'))
+
+        # Getting the data delimiters
+        header_type = Configurator(self.__cfg_path).get('dataset', 'header_type')
+        idx_s = header_type.find('d')
+        # if the data are in the last columns, we need to calculate n in a different way
+        if header_type[len(header_type) - 1] == 'd':
+            self._data_delimiters = (0, idx_s)
+
+        else:
+            idx_e = (len(header_type) - 1) - idx_s
+            self._data_delimiters = (idx_s, -idx_e)
 
         # --- Load Data ---
         try:
@@ -200,6 +196,8 @@ class B_HAR:
                                                        time_window=time_window_size,
                                                        overlap=Configurator(self.__cfg_path).getfloat('settings', 'overlap'),
                                                        header_type=Configurator(self.__cfg_path).get('dataset', 'header_type'))
+                dt_dataset = pd.DataFrame(np.concatenate(dataset), columns=dataset[0].columns)
+
             except Exception as e:
                 print('Failed to extract features.')
                 print(e.args)
@@ -208,9 +206,13 @@ class B_HAR:
         elif data_treatment_type == 'segmentation':
             try:
                 dt_dataset = self._apply_segmentation(df=dataset,
+                                                      has_section=Configurator(self.__cfg_path).get('dataset', 'has_section'),
+                                                      method=Configurator(self.__cfg_path).get('dataset', 'method'),
                                                       sampling_frequency=Configurator(self.__cfg_path).getint('settings', 'sampling_frequency'),
                                                       time_window_size=time_window_size,
                                                       overlap=Configurator(self.__cfg_path).getfloat('settings', 'overlap'))
+                dt_dataset = pd.DataFrame(np.concatenate(dt_dataset), columns=dt_dataset[0].columns)
+
             except Exception as e:
                 print('Failed during data segmentation.')
                 print(e.args)
@@ -225,13 +227,12 @@ class B_HAR:
 
         # ----------------------
 
-        dt_dataset = pd.DataFrame(np.concatenate(dataset), columns=dataset[0].columns)
         del dataset
 
         # --- Preprocessing ---
         try:
             X_train_set, X_validation_set, Y_train_set, Y_validation_set, class_labels = self._data_preprocessing(
-                df=dt_dataset,
+                df=dt_dataset.copy(),
                 drop_class=discard_class,
                 drop_patient=discard_patients,
                 split_method=Configurator(self.__cfg_path).get('preprocessing', 'split_method'),
@@ -267,8 +268,10 @@ class B_HAR:
     def _get_cfg_path(self):
         return self.__cfg_path
 
-    def _apply_segmentation(self, df, sampling_frequency, time_window_size, overlap):
+    def _apply_segmentation(self, df, has_section, method, sampling_frequency, time_window_size, overlap):
         has_patient = 'p' in Configurator(self.__cfg_path).get('dataset', 'header_type')
+        has_section = Configurator(self.__cfg_path).get('dataset', 'has_section')
+        header_type = Configurator(self.__cfg_path).get('dataset', 'header_type')
         x_df = []
         widgets = [
             'Segmentation',
@@ -278,21 +281,34 @@ class B_HAR:
         ]
 
         with progressbar.ProgressBar(widgets=widgets, max_value=len(df)) as bar:
-            #TODO: provare a usare altro metodo di numpy
             for d in df:
                 if has_patient:
-                    x, y, p = self._get_window(d, sampling_frequency, time_window_size, overlap)
+                    if has_section == '1' or has_section == '2':
+                        x, y, p, a, s, t = self._get_window(d, sampling_frequency, time_window_size, overlap, has_section, method)
+                    else:
+                        x, y, p, a, t = self._get_window(d, sampling_frequency, time_window_size, overlap, has_section, method)
                 else:
-                    x, y = self._get_window(d, sampling_frequency, time_window_size, overlap)
-                    p = None
+                    if has_section == '1' or has_section == '2':
+                        x, y, a, s, t = self._get_window(d, sampling_frequency, time_window_size, overlap, has_section, method)
+                    else:
+                        x, y, a, t = self._get_window(d, sampling_frequency, time_window_size, overlap, has_section, method)
 
-                dat = pd.DataFrame(x.reshape(-1, x.shape[1] * x.shape[2]))
-                dat['CLASS'] = y
+                dat = pd.DataFrame()
 
-                if has_patient and p is not None:
-                    dat['P_ID'] = p
+                if x.shape[0] != 0:
+                    for i in header_type:
+                        if i == 'd':
+                            dat[a[0:x.shape[1]]] = pd.DataFrame(x)
+                        if i == 'c':
+                            dat['CLASS'] = y
+                        if i == 'p':
+                            dat['P_ID'] = p
+                        if i == 's':
+                            dat['sec'] = s
+                        if i == 't':
+                            dat['time'] = t
 
-                x_df.append(dat)
+                    x_df.append(dat)
                 bar.update()
 
         return x_df
@@ -405,8 +421,13 @@ class B_HAR:
                                       filter_order=order)
 
         header_type = Configurator(self.__cfg_path).get('dataset', 'header_type')
-        for column in list(df.columns)[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]]:
-            df[column] = sm.signal.filter_signal(b, a, signal=df[column].values)
+
+        if header_type[len(header_type) - 1] == 'd':
+            for column in list(df.columns)[self._data_delimiters[1]: df.shape[1]-1]:
+                df[column] = sm.signal.filter_signal(b, a, signal=df[column].values)
+        else:
+            for column in list(df.columns)[self._data_delimiters[0]: self._data_delimiters[1]]:
+                df[column] = sm.signal.filter_signal(b, a, signal=df[column].values)
 
         return df
 
@@ -714,6 +735,8 @@ class B_HAR:
 
     def _data_preprocessing(self, df, drop_class, drop_patient, split_method, normalisation_method, selection_method,
                             balancing_method, ids_test_set: list = None):
+        has_section = Configurator(self.__cfg_path).get('dataset', 'has_section')
+
         widgets = [
             'Data Preprocessing',
             ' [', progressbar.Timer(), '] ',
@@ -734,6 +757,10 @@ class B_HAR:
                 for patient_id in drop_patient:
                     indexes = df[(df['P_ID'] == patient_id)].index
                     df.drop(indexes, inplace=True)
+
+            #Drop sessions
+            if has_section != 0:
+                df.drop('sec', axis = 1, inplace = True)
 
             bar.update()
 
@@ -757,6 +784,7 @@ class B_HAR:
                 # Define inter patient training and validation datasets
                 training_dataset, validation_dataset = self._select_patients_training_test(df, ids_test_set)
             elif split_method == 'intra' and 'p' in header_type or split_method == 'holdout':
+
                 training_dataset, validation_dataset = train_test_split(df,
                                                                         shuffle=True,
                                                                         test_size=Configurator(self.__cfg_path).getfloat(
@@ -782,6 +810,11 @@ class B_HAR:
                 training_data = training_dataset.drop(['CLASS'], axis=1)
                 validation_data = validation_dataset.drop(['CLASS'], axis=1)
 
+            if 'time' in training_data.columns:
+                # Drop time if exists
+                training_data = training_data.drop(['time'], axis=1)
+                validation_data = validation_data.drop(['time'], axis=1)
+
             training_labels = training_dataset['CLASS']
             validation_labels = validation_dataset['CLASS']
 
@@ -797,6 +830,7 @@ class B_HAR:
             else:
                 scaler = preprocessing.StandardScaler()
 
+            #voglio passare solo le colonne dei dati, quindi mi ritornano lo stesso numero di colonne
             training_data = scaler.fit_transform(training_data)
             validation_data = scaler.transform(validation_data)
 
@@ -919,11 +953,14 @@ class B_HAR:
 
     def _derive_headers(self, columns, header_type: str = None):
 
+        idx_s = header_type.find('d')
         # if the data are in the last columns, we need to calculate n in a different way
-        if header_type[len(header_type)-1] == "d":
-            n = columns - self._data_delimiters[header_type]
+        if header_type[len(header_type)-1] == 'd':
+            n = columns - idx_s
         else:
-            n = columns + self._data_delimiters[header_type][1] - self._data_delimiters[header_type][0]
+            idx_e = (len(header_type)-1) - idx_s
+            n = columns - idx_s - idx_e
+
         header = []
 
         for i in header_type:
@@ -933,6 +970,8 @@ class B_HAR:
                 header.append('CLASS')
             if i == 'p':
                 header.append('P_ID')
+            if i == 's':
+                header.append('sec')
             if i == 'd':
                 axis = ['x', 'y', 'z']
                 column_signature = 'A'
@@ -988,6 +1027,8 @@ class B_HAR:
                 df['CLASS'] = df['CLASS'].astype('object')
             elif ht == 'p':
                 df['P_ID'] = df['P_ID'].astype('int64')
+            elif ht == 's':
+                df['sec'] = df['sec'].astype('object')
             elif ht == 'd':
                 df[header[-1]] = df[header[-1]].astype('float64')
 
@@ -1084,16 +1125,30 @@ class B_HAR:
 
         for d in np.arange(0,len(df)):
             if cutoff is not None:
-                df_filtered[d] = pd.DataFrame(
-                    self._apply_filter(
-                        df=df_filtered[d],
-                        filter_name=filter_name,
-                        sample_rate=sampling_frequency,
-                        frequency_cutoff=cutoff,
-                        order=filter_order
-                    ),
-                    columns=list(df[d].columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]])
-                )
+                if header_type[len(header_type) - 1] == 'd':
+                    df_filtered[d] = pd.DataFrame(
+                        self._apply_filter(
+                            df=df_filtered[d],
+                            filter_name=filter_name,
+                            sample_rate=sampling_frequency,
+                            frequency_cutoff=cutoff,
+                            order=filter_order
+                        ),
+                        columns=list(df[d].columns[self._data_delimiters[1]: df.shape[1]-1])
+                    )
+                else:
+                    if header_type[len(header_type) - 1] == 'd':
+                        df_filtered[d] = pd.DataFrame(
+                            self._apply_filter(
+                                df=df_filtered[d],
+                                filter_name=filter_name,
+                                sample_rate=sampling_frequency,
+                                frequency_cutoff=cutoff,
+                                order=filter_order
+                            ),
+                            columns=list(df[d].columns[
+                                         self._data_delimiters[0]: self._data_delimiters[1]])
+                        )
 
                 # Add class and other to the filtered dataset
                 # TODO: Aggiungere la normalizzazione dei dati (0 mean),  bisogna lavorare su TUTTI i dati (?)
@@ -1115,7 +1170,8 @@ class B_HAR:
                 x = x.drop(['P_ID'], axis=1)
             if 't' in header_type:
                 x = x.drop(['time'], axis=1)
-
+            if 's' in header_type:
+                x = x.drop(['sec'], axis=1)
             y = d['CLASS']
 
             # Available domains: "statistical"; "spectral"; "temporal"
@@ -1273,42 +1329,82 @@ class B_HAR:
                     '--> Elapsed time prediction: %s' % self._to_readable_time(stop_prediction - start_prediction))
                 bar.update()
 
-    def _get_window(self, df: pd.DataFrame, sampling_frequency: int, window_size: int, overlap: float):
+    def _get_window(self, df: pd.DataFrame, sampling_frequency: int, window_size: int, overlap: float, has_section: str, method: str):
         hop_size = window_size - int(sampling_frequency * overlap)
 
-        data = list()
+        data_f = list()
         labels = list()
+        sections = list()
+        times = list()
         patients = list()
         header_type = Configurator(self.__cfg_path).get('dataset', 'header_type')
+        method = Configurator(self.__cfg_path).get('dataset', 'method')
         has_patient = 'p' in header_type
 
-        if header_type.rfind('d')==len(header_type)-1 :
-            columns = df.columns[self._data_delimiters[header_type]: len(df.columns)]
+        if header_type.rfind('d') == len(header_type)-1:
+            columns = df.columns[self._data_delimiters[1]: len(df.columns)]
         else:
-            columns = df.columns[self._data_delimiters[header_type][0]: self._data_delimiters[header_type][1]]
+            columns = df.columns[self._data_delimiters[0]: self._data_delimiters[1]]
 
         if has_patient:
             df.astype({'P_ID':'int64'})
 
+        if header_type.rfind('d') == len(header_type)-1:
+            axis = [name + '_{}'.format(num // len(df.iloc[:, self._data_delimiters[1]:len(df) - 1].columns))
+                    for num, name in enumerate(df.iloc[:, self._data_delimiters[1]:len(df) - 1].columns.tolist() * len(df))]
+        else:
+            axis = [name + '_{}'.format(num // len(df.iloc[:, self._data_delimiters[0]:self._data_delimiters[1]].columns))
+                    for num, name in enumerate(df.iloc[:, self._data_delimiters[0]:self._data_delimiters[1]].columns.tolist() * window_size)]
+
+        axis = ns.natsort(axis, key=lambda y: y.lower())
+        #for i in range(df.index.start, df.index.stop - window_size + 1, hop_size): #range(0, len(df)) ? 0 is not in range
+        df.reset_index(inplace= True)
         for i in range(0, len(df) - window_size + 1, hop_size):
             window = list()
+            data = list()
             for column in columns:
                 x_i = df[column].values[i: i + window_size]
                 window.append(x_i)
 
-            # Associate a label for the current window based on mode
-            label = stats.mode(df['CLASS'].values[i: i + window_size])[0][0]
+            # Associate a label for the current window based on one of the three methods.
+            if method == '0':
+                label = df['CLASS'].values[i]
+            elif method == '1' and has_section != '1':
+                label = stats.mode(df['CLASS'].values[i: i + window_size])[0][0]
+            elif method == '2' and has_section != '1':
+                l = np.unique(df['CLASS'].values[i: i+window_size])
+                if l.size <= 1:
+                    label = l
+                else:
+                    label = '-'.join(l)
+            else:
+                print('Error: impossible to use this method with a single section. Please select the method 0.')
+                exit(40)
 
-            data.append(np.array(window).T)
+            if has_section == '1' or has_section == '2':
+                section = stats.mode(df['sec'].values[i: i + window_size])[0][0]
+                sections.append(section)
+            time = str(df['time'][i]) + ' - ' + str(df['time'][i+window_size])
+
+            data = np.concatenate(window)
+
+            data_f.append(np.array(data))
             labels.append(label)
+            times.append(time)
 
             if has_patient:
                 patients.append(stats.mode(df['P_ID'].values[i: i + window_size])[0][0])
 
         if has_patient:
-            return np.asarray(data), np.asarray(labels), np.asarray(patients)
+            if has_section == '1' or has_section == '2':
+                return np.asarray(data_f), np.asarray(labels), np.asarray(patients), np.asarray(axis), np.asarray(sections), np.asarray(times)
+            else:
+                return np.asarray(data_f), np.asarray(labels), np.asarray(patients), np.asarray(axis), np.asarray(times)
         else:
-            return np.asarray(data), np.asarray(labels)
+            if has_section == '1' or has_section == '2':
+                return np.asarray(data_f), np.asarray(labels), np.asarray(axis), np.asarray(sections), np.asarray(times)
+            else:
+                return np.asarray(data_f), np.asarray(labels), np.asarray(axis), np.asarray(times)
 
     @staticmethod
     def _get_pbp_train(data, labels, balancing, n_features, time_window):
